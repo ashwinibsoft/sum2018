@@ -662,110 +662,105 @@ Class ExistingBuyersController extends ExistingBuyerManagerAppController{
 		
 	public function replace_existing_info($id=null) {
 		  $member_id = self::_check_member_login();
+		  
 		  $loguser =$this->MemberAuth->get_active_member_detail();
+		  
 		  $process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$member_id),'fields'=>array('Supplier.process_step')));
+		  
 		  $countries = $this->Country->country_list();
+		  
 		  $page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		  
+		  /*==========================GET EXPIRED EXISTING BUYER==================================*/
 		
-		  $eb_exp_data=$this->EbLoginDetail->find('list',array('conditions'=>array('EbLoginDetail.is_link_expire'=>1,'EbLoginDetail.eb_status'=>2),'fields'=>array('existing_buyer_id')));
-		
-		
+		  $eb_exp_data=$this->EbLoginDetail->find('list',array('conditions'=>array('EbLoginDetail.is_link_expire'=>array(1,3),'EbLoginDetail.eb_status'=>2),'fields'=>array('existing_buyer_id')));
+				
 		  $eb_list = $this->ExistingBuyer->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$member_id,'ExistingBuyer.id'=>$eb_exp_data,'ExistingBuyer.status'=>1)));
-	
-	       //echo '<pre>'; print_r($eb_list); // die;
 	       
 	      $t_rep_existingbuyer = count($eb_list);
 	       
 	      $this->request->data['ExistingBuyer'] =  $eb_list;
-	       
-	      // echo '<pre>'; print_r($this->request->data); die;
-	    
 		
-		   $this->set('eb', $eb_list);
+		  $this->set('eb', $eb_list);
 		
-		
-			$this->System->set_seo('site_title','Supplier-Existing Buyer');
-			$this->System->set_data('banner_image',$page['Page']['banner_image']);
-			$this->set('countries', $countries);
-			$this->set('supplier_id',  $member_id);
-			$this->set('process_step',$process_step['Supplier']['process_step']);
+		  $this->System->set_seo('site_title','Supplier-Existing Buyer');
+		  
+		  $this->System->set_data('banner_image',$page['Page']['banner_image']);
+		  
+		  $this->set('countries', $countries);
+		  
+		  $this->set('supplier_id',  $member_id);
+		  
+		  $this->set('process_step',$process_step['Supplier']['process_step']);
 			
-			$req_fed = $this->__check_eb($member_id);
+		  $req_fed = $this->__check_eb($member_id);
 			
-			//echo $req_fed; die;
-			
-			$this->set('req_fed',$req_fed);
+		  $this->set('req_fed',$req_fed);
 		}
 			
 	public function replace_exist_ajax($id=null) {
 		  
-		  $member_id = self::_check_member_login();
-			$this->autoRender = false;
+		 $member_id = self::_check_member_login();
+		 
+		 $this->autoRender = false;
 		
 		if(!empty($this->request->data)){
 			
-			if(!empty($this->request->data['ExistingBuyer']['id'])){
+		 if(!empty($this->request->data['ExistingBuyer']['id'])){
 				
-			  $e_id = $this->request->data['ExistingBuyer']['id'];
+			 $e_id = $this->request->data['ExistingBuyer']['id'];
 				
-			  $eu_details = $this->ExistingBuyer->read(null,$e_id);
+			 $eu_details = $this->ExistingBuyer->read(null,$e_id);
 			  
-			   if($eu_details['ExistingBuyer']['email_id'] == $this->request->data['ExistingBuyer']['email_id'] ){
+			 if($eu_details['ExistingBuyer']['email_id'] == $this->request->data['ExistingBuyer']['email_id'] ){
 					
-			    $this->request->data['ExistingBuyer']['modified_at'] = date('Y-m-d H:i:s');
+			 $this->request->data['ExistingBuyer']['modified_at'] = date('Y-m-d H:i:s');
 		
-				$this->ExistingBuyer->create();
+			 $this->ExistingBuyer->create();
 		 
-				$this->ExistingBuyer->save($this->request->data,array('validate'=>false));
+			 $this->ExistingBuyer->save($this->request->data,array('validate'=>false));
 				
-				$replace_exbuyer_status = 2;
+			 $replace_exbuyer_status = 2;
 			 
-			 }else {
+		    }else {
 				
-				  $n_id = $this->request->data['ExistingBuyer']['id'] ;
+				$n_id = $this->request->data['ExistingBuyer']['id'] ;
 				
-			      unset($this->request->data['ExistingBuyer']['id']);
+			    unset($this->request->data['ExistingBuyer']['id']);
 			      
-			      $this->request->data['ExistingBuyer']['created_at']= date('Y-m-d H:i:s');
+			    $this->request->data['ExistingBuyer']['created_at']= date('Y-m-d H:i:s');
 			      
-			      $this->request->data['ExistingBuyer']['org_name']=ucfirst($this->request->data['ExistingBuyer']['org_name']);
+			    $this->request->data['ExistingBuyer']['org_name']=ucfirst($this->request->data['ExistingBuyer']['org_name']);
 			
-			      $this->request->data['ExistingBuyer']['replace']=1;
+			    $this->request->data['ExistingBuyer']['replace']=1;
 			      
-			      $this->ExistingBuyer->create();
+			    $this->ExistingBuyer->create();
 			      
-			      $this->ExistingBuyer->save($this->request->data,array('validate'=>false));
+			    $this->ExistingBuyer->save($this->request->data,array('validate'=>false));
 			      
-			      $n_exp_date = date('Y-m-d h:i:s', strtotime("+14 days"));
+			    $n_exp_date = date('Y-m-d h:i:s', strtotime("+14 days"));
 			      
-			     /*$this->EbLoginDetail->updateAll(
+			    /*$this->EbLoginDetail->updateAll(
                       array('EbLoginDetail.link_expire_date' => "'$n_exp_date'",'EbLoginDetail.eb_status'=> NULL,'EbLoginDetail.is_replace'=>1,'EbLoginDetail.is_link_expire'=>0),
                       array('EbLoginDetail.existing_buyer_id'=>$n_id));	 */
                       
-                   $this->EbLoginDetail->updateAll(
-                      array('EbLoginDetail.is_replace'=>1),
-                      array('EbLoginDetail.existing_buyer_id'=>$n_id));	          
+                $this->EbLoginDetail->updateAll( array('EbLoginDetail.is_replace'=>1),array('EbLoginDetail.existing_buyer_id'=>$n_id));	          
 			      
-			      $replace_exbuyer_status = 3;
+			    $replace_exbuyer_status = 3;
 					
 					}
 				}
-	
 			}		
 		
 		 $exist_id = $this->ExistingBuyer->find('count', array('conditions' => array('ExistingBuyer.status'=>1,'ExistingBuyer.replace'=>1,'ExistingBuyer.supplier_id'=>$member_id)));
-		 
 		
 		//$return_val = array($exist_id,$replace_exbuyer_status);
 		
 		echo json_encode(array($exist_id, $replace_exbuyer_status));
 		
 		return ;
-		
-			
-		}		
-	
-			 
+		}
+		 
 	public function update_existing_info($id=null) {
 		  $member_id = self::_check_member_login();
 		  $loguser =$this->MemberAuth->get_active_member_detail();
