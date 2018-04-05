@@ -1,0 +1,77 @@
+.flex-container a:active, .flexslider a:active, .flex-container a:focus, .flexslider a:focus  {outline: none;}
+.slides, .flex-control-nav, .flex-direction-nav {margin: 0; padding: 0; list-style: none;} 
+.flexslider {margin:0px auto 0px; padding: 0; position:relative; min-height:389px; height:auto; background:url(../img/3.gif) center center no-repeat;}
+.flexslider .slides > li {	display: none; -webkit-backface-visibility: hidden;}
+.flexslider .slides img {	width: 100%; display: block; /*border:1px solid #4c5456;*/}
+.flex-pauseplay span {	text-transform: capitalize;}
+.slides:after {	content: "."; display: block; clear: both; visibility: hidden; line-height: 0; height: 0;} 
+html[xmlns] .slides {	display: block;} 
+* html .slides {height: 1%;}
+.no-js .slides > li:first-child {display: block;}
+.flexslider { position: relative; zoom: 1; /*min-height:300px;*/}
+.flex-viewport {max-height: 2000px; -webkit-transition: all 1s ease; -moz-transition: all 1s ease; transition: all 1s ease;}
+.loading-flex {
+	position: absolute;
+	top: 30%;
+	left: 44%;
+	opacity: 0.8;
+	cursor: pointer;
+	z-index: -99999;
+}
+
+.loading-flex{
+	width: 32px;
+	height: 32px;
+}
+.loading .flex-viewport {max-height: 300px;}
+.flexslider .slides {	zoom: 1;}
+.carousel li {margin-right: 5px}
+.flex-direction-nav {*height: 0;}
+.flex-direction-nav a {	width: 24px; height: 40px; margin: -20px 0 0; display: block; position: absolute; z-index: 10; cursor: pointer; text-indent: -9999px; opacity: 1; -webkit-transition: all .3s ease;}
+.flex-direction-nav .flex-next {  background:url(../img/arrow-forward.jpg) no-repeat; width: 50px; height:90px; top:40%; right:0px;}
+.flex-direction-nav .flex-prev { background:url(../img/arrow-back.jpg) no-repeat;  width: 50px; height:90px;  top:40%; left:0px;}
+.flexslider:hover .flex-next { right:0px;}
+.flexslider:hover .flex-prev { left: 0px;}
+.flexslider:hover .flex-next:hover, .flexslider:hover .flex-prev:hover {opacity: 1;}
+/* Control Nav */
+.flex-control-nav { position: absolute; bottom: 0px; left:48px; text-align: center;  padding: 7px 10px 0;  margin:40px 0; border-radius:5px 5px 0 0; -moz-border-radius:5px 5px 0 0; -ms-border-radius:5px 5px 0 0; -o-border-radius:5px 5px 0 0; -webkit-border-radius:5px 5px 0 0;}
+.flex-control-nav li {margin: 0 0px; padding:5px; display: inline-block; zoom: 1; *display: inline;}
+.flex-control-paging li a {width: 12px; height: 12px; display: block; background:url(../img/slider-buttonss.png) no-repeat; cursor: pointer; text-indent: -9999px; width:25px; height:25px;}
+.flex-control-paging li a:hover {background:url(../img/slider-buttonss-hover.png) no-repeat;  }
+.flex-control-paging li a.flex-active { background:url(../img/slider-buttonss-hover.png) no-repeat; width:25px; height:25px; cursor: default; }
+
+.banner-bg{ background:url(../img/banner-bg.png) repeat-x #c6c3c6; width:100%; height:auto;}
+.flexslider .slides p.flex-caption { background:url(../img/banner-content.png) top left repeat-x; bottom:-10px; color: #FFFFFF; font-size: 23px; line-height:60px; font-family: 'OpenSansSemibold'; margin-left:0px; position: absolute; text-align:left; width:100%; padding-left:10px;text-transform:uppercase;}
+.flexslider .slides p.flex-caption span {color: #00b96d;}
+
+@media (max-width: 1280px) and (min-width: 1025px) {
+.flexslider{height:auto; min-height:400px;}	
+.banner-text1{ margin-left:80px !important;}
+.flex-control-nav {left: 62px !important; top: 270px !important;}
+.flex-direction-nav .flex-prev{ width:50px !important; height:90px !important;}
+.flex-direction-nav .flex-next { width:50px !important; height:90px !important;}
+}
+@media (max-width: 1350px) and (min-width: 1280px) {
+.flexslider{height:auto; min-height:425px;}	
+.banner-text1{ margin-left:122px !important;}
+.flex-control-nav {left: 106px !important; top:260px !important;}
+.flex-direction-nav .flex-prev{ width:50px !important; height:90px !important;}
+.flex-direction-nav .flex-next { width:50px !important; height:90px !important;}
+}
+@media (max-width: 5000px) and (min-width: 1350px) {
+.flexslider{height:auto; width:1350px;}
+.banner-text1{ margin-left:200px !important;}
+.flex-control-nav {left: 185px !important; top:260px !important;}
+.flex-direction-nav .flex-prev{ width:50px !important; height:90px !important;}
+.flex-direction-nav .flex-next { width:50px !important; height:90px !important;}	
+}
+
+
+
+.position{position:relative;}
+.banner-text{position:absolute; color:#fff; top:0; width:320px; margin-left:60px; padding-right:20px;}
+.heading{font-family:'Proxima Nova'; font-size:48px; color:#fff;  padding: 10px 0 5px;}
+.line{border:1px solid #fff; width:110px; float:left;}
+.paragraph{font-family:'Proxima Nova'; font-size:15px; color:#fff; padding: 20px 0 5px; line-height:18px; }
+.logo-image{float:left; padding-top:30px;}
+

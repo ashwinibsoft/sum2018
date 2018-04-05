@@ -1,0 +1,16 @@
+<?php Class NewbuyerExist extends SupplierManagerAppModel {
+	public $name = "NewbuyerExist";
+	public $actsAs = array('Multivalidatable');
+	
+	public $belongsTo = array(
+			'Supplier' => array(
+				'className' => 'Supplier',
+				'foreignKey' =>'supplier_id',
+			),
+			'NewBuyer' => array(
+				'className' => 'NewBuyer',
+				'foreignKey' =>'buyer_id',
+			),
+		);	
+}
+?>

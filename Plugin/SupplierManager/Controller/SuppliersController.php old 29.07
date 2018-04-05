@@ -1,0 +1,1615 @@
+<?php
+Class SuppliersController extends SupplierManagerAppController{
+	public $uses = array('SupplierManager.Supplier','ContentManager.Page','Country','SupplierManager.SupplierBuyer','NewBuyerManager.NewBuyer','ExistingBuyerManager.ExistingBuyer','NewBuyerManager.NewBuyerQuestion','ExistingBuyerManager.EbLoginDetail','SupplierManager.FeedbackRequest','SupplierManager.Payment');
+	public $components=array('Email','RequestHandler','Image','MyMail');
+	var $helpers = array('Captcha','Csv');
+	public $paginate = array();
+	public $id = null;
+	public $template=null;
+	
+	public function beforeFilter() {
+			parent::beforeFilter();	
+			/*$loguser = $this->Session->read('Auth.Supplier');
+			$active_supplier_id=$loguser['id'];
+			if(empty($active_supplier_id)){
+				$this->Session->destroy();
+				$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'login'));
+			}
+			$this->set('supplier_id', $active_supplier_id);		*/
+			//$this->Auth->allow('login', 'registration','forgot');
+			//$this->Auth->deny('profile', 'dashboard','edit_profile','add_new_buyer','eb_list','make_request','card_detail');
+		}
+
+	function admin_index($search=null,$limit=10){
+		$this->paginate = array();
+		$condition = null;
+		if($search=="_blank"){
+			$search=null;
+		}
+		$this->Supplier->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('Supplier.country = Country.country_code_char2')))));
+		$this->paginate['limit']=$limit;
+		if($this->request->is('post')){
+			if(!empty($this->request->data['search'])){
+				$search = $this->request->data['search'];
+			}else{
+				$search = '_blank';
+			}
+			if(!empty($this->request->data['limit'])){
+				$limit = $this->request->data['limit'];
+			}else{
+				$limit = '10';
+			}
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'index',$search,$limit));
+		}
+		if($search!=null){
+			$search = urldecode($search);	
+			$condition['OR'][]=array('OR'=>array('Supplier.first_name like'=>'%'.$search.'%','Supplier.last_name like'=>'%'.$search.'%','Supplier.title like'=>'%'.$search.'%'));
+		}
+		
+		
+		$suppliers = array();
+		$this->paginate['order']=array('Supplier.id'=>'DESC');
+		$suppliers= $results=$this->paginate("Supplier", $condition);
+		$this->breadcrumbs[] = array(
+			'url'=>Router::url('/admin/home'),
+			'name'=>'Dashboard'
+		);
+		$this->breadcrumbs[] = array(
+			'url'=>Router::url('/admin/supplier_manager/suppliers'),
+			'name'=>'Manage Supplier'
+		);
+		
+		$this->heading =  array("Manage","Supplier");
+
+		$this->set('suppliers',$suppliers);
+		$this->set('limit',$limit);
+		$this->set('search',$search);
+		$this->set('url','/'.$this->params->url);
+		
+	}
+	
+	function admin_add($id=null){
+		
+		$this->breadcrumbs[] = array(
+		'url'=>Router::url('/admin/home'),
+		'name'=>'Dashboard'
+		);
+		$this->breadcrumbs[] = array(
+				'url'=>Router::url('/admin/supplier_manager/suppliers'),
+				'name'=>'Manage Suppliers'
+		);
+		$this->breadcrumbs[] = array(
+				'url'=>Router::url('/admin/supplier_manager/suppliers/add/'.$id),
+				'name'=>($id==null)?'Add Supplier':'Update Supplier'
+		);
+		if($id==null){
+			$this->heading =  array("Add","Supplier");
+		}else{
+			$this->heading =  array("Update","Supplier");
+		}
+		$countries = $this->Country->country_list();
+		
+		if(!empty($this->request->data) && $this->validation()){
+			
+			if(!$id){
+				$this->request->data['Supplier']['created_at']=date('Y-m-d H:i:s');
+				
+			}else{
+				$this->request->data['Supplier']['updated_at']=date('Y-m-d H:i:s');
+			}
+			if(empty($this->request->data['Supplier']['id'])){
+				if(isset($this->request->data['save']) && $this->request->data['save']=='Save'){
+					$this->request->data['Supplier']['status'] = 1;
+				}else{
+					$this->request->data['Supplier']['status'] = 1;
+				}
+			}
+				//echo "<pre>"; print_r(($this->request->data)); die;
+			$this->Supplier->create();
+			$this->Supplier->save($this->request->data,array('validate'=>false));
+			$id = $this->Supplier->id;
+			
+			if ($this->request->data['Supplier']['id']) {
+				$this->Session->setFlash(__('Record has been updated successfully'));
+			} 
+			else{
+				$this->Session->setFlash(__('Record has been added successfully'));
+			}
+			$this->redirect(array('action'=>'add',$id,'?'=>array('back'=>$this->request->data['Supplier']['url_back_redirect'])));
+		}
+		else{
+			if(!empty($this->request->data)){
+				$this->Session->setFlash(__('Please fill all the required fields'),'default',array(),'error');
+			}
+			
+			if($id!=null){
+				$this->request->data = $this->Supplier->read(null,$id);
+			}else{
+				$this->request->data = array();
+			}
+		}
+		
+		$referer_url = $this->request->query('back');
+		if(!empty($referer_url)){
+			$referer_url= $this->request->query('back');
+		}else{
+			$referer_url=(Controller::referer()=="/")? Router::url('/admin/supplier_manager/suppliers',true) :Controller::referer();
+		
+		}
+		$this->set('referer_url',$referer_url);
+		$this->set('supplier_id',$id);
+		$this->set('countries',$countries);
+	}
+	
+	function admin_delete($id=null){
+		$this->autoRender = false;
+		//print_r($this->request->data); die;
+		$data=$this->request->data['Supplier']['id'];
+		//print_r($data); die;
+		$action = $this->request->data['Supplier']['action'];
+		$ans="0";
+		foreach($data as $value){
+			if($value!='0'){
+				if($action=='Activate'){
+					$supplier['Supplier']['id'] = $value;
+					$supplier['Supplier']['status']=1;
+					$this->Supplier->create();
+					$this->Supplier->save($supplier);
+					$ans="1";
+				}
+				if($action=='Disable'){
+					$supplier['Supplier']['id'] = $value;
+					$supplier['Supplier']['status']=0;
+					$this->Supplier->create();
+					$this->Supplier->save($supplier);
+					$ans="1";
+				}
+				if($action=='Delete'){
+					$this->Supplier->delete($value);
+					//$this->Supplier->delete_routes($value,'Supplier');
+					$ans="2";
+				}
+			}
+		}
+		
+		if($ans=="1"){
+			$this->Session->setFlash(__('Supplier has been '.strtolower($this->data['Supplier']['action']).'ed successfully', true));
+		}
+		else if($ans=="2"){
+			$this->Session->setFlash(__('Supplier has been '.strtolower($this->data['Supplier']['action']).'d successfully', true));
+		}else{
+			$this->Session->setFlash(__('Please Select any Supplier', true),'default','','error');
+		}
+		$this->redirect($this->request->data['Supplier']['redirect']);
+                 
+	}
+	
+	function validation2(){		
+		if(!empty($this->request->data['SupplierBuyer']['form'])){
+			if($this->request->data['SupplierBuyer']['form']=="supplier_add_buyer"){
+				return true;
+			}
+			$this->SupplierBuyer->setValidation($this->request->data['SupplierBuyer']['form']);
+		}else{
+			throw new NotFoundException('404 Error - Supplier not found');
+		}
+		$this->SupplierBuyer->set($this->request->data);
+		return $this->SupplierBuyer->validates();
+	}
+	
+	function validation(){		
+		if(!empty($this->request->data['Supplier']['form'])){
+			if($this->request->data['Supplier']['form']=="supplier_add" && $this->request->data['Supplier']['status']==2){
+				return true;
+			}
+			$this->Supplier->setValidation($this->request->data['Supplier']['form']);
+		}else{
+			throw new NotFoundException('404 Error - Supplier not found');
+		}
+		$this->Supplier->set($this->request->data);
+		return $this->Supplier->validates();
+	}
+	
+	function ajax_validation($returnType = 'json'){
+		
+		$this->autoRender = false;
+		if(!empty($this->request->data)){
+			if(!empty($this->request->data['Supplier']['form'])){
+				$this->Supplier->setValidation($this->request->data['Supplier']['form']);
+			}
+			$this->Supplier->set($this->request->data);
+			$result = array();
+			if(($this->request->data['Supplier']['form']=="supplier_add") && $this->request->data['Supplier']['status']==2){
+	///	if(!empty($this->request->data['Supplier']['status'])){
+				//if(($this->request->data['Supplier']['form']=="supplier_add") && $this->request->data['Supplier']['status']==2){
+					$result['error'] = 0;
+				}else{
+					if($this->Supplier->validates()){
+						$result['error'] = 0;
+					}else{
+						$result['error'] = 1;
+						$this->Session->setFlash(__('Please fill all the required fields'),'default',array(),'error');
+					}
+				}
+			//}
+			
+			$errors = array();
+			$result['errors'] = $this->Supplier->validationErrors;
+			foreach($result['errors'] as $field => $data){
+			  $errors['Supplier'.Inflector::camelize($field)] = array_pop($data);
+			}
+			$result['errors'] = $errors;
+			$view = new View();
+			
+			$result['error_message'] = $view->element('admin/message');
+			echo json_encode($result);
+			return;
+		}
+		echo json_encode(array());
+	}
+	
+	function admin_export(){
+		$condition = array();												
+		$options['group']=array('Supplier.id');
+		$options['order']= array('Supplier.id'=>'DESC');
+		$supplierInfos = $this->Supplier->find('all',$options);
+		
+		if(empty($supplierInfos)){
+			$this->Session->setFlash(__('No data found to export!', true),'default','','error');
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'index'));
+		}
+		$this->set('supplierInfos', $supplierInfos);
+		$this->layout = null;
+		$this->autoLayout = false;
+		Configure::write('debug','2');
+	}
+	
+	public function admin_create_pdf(){
+      
+		$condition = array();			
+		$options['order']= array('Supplier.id'=>'ASC');
+		$suppliers = $this->Supplier->find('all',$options);
+		if(empty($suppliers)){
+			$this->Session->setFlash(__('No data found to export!', true),'default','','error');
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'index'));
+		}
+		
+		$this->set('suppliers', $suppliers);
+		//print_r($suppliers); die;
+		$this->layout = null;
+		$this->autoLayout = false;
+		Configure::write('debug','2');
+		
+		$currntdate=date('d-m-Y'); 
+		$this->set('currntdate',$currntdate);
+		$this->layout = '/pdf/default';
+	
+	}
+	
+	public function login(){
+		
+		$page = $this->__load_page(48);
+		$this->set('page', $page);
+		//if($this->Auth->user('id')){
+			//$this->redirect($this->Auth->redirect());
+		//}
+		$memberType = $this->MemberAuth->get_member_type();
+		if($this->MemberAuth->is_active_member() && $memberType ==1){
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'dashboard'));
+		}
+		
+		if(!empty($this->request->data) && $this->validation()){
+		
+			if ($this->request->is('post')){
+				$pass=Security::hash(Configure::read('Security.salt').$this->request->data['Supplier']['password']);
+				
+				$SupplierLogin=$this->Supplier->find('first',array('conditions'=>array('Supplier.email_id'=>$this->request->data['Supplier']['email_id'],'Supplier.password'=>$pass,'Supplier.status'=>array(0,1))));
+				
+				if (!empty($SupplierLogin)){
+					
+					if($SupplierLogin['Supplier']['status'] == 1){
+						$SupplierLogin['Supplier']['user_type']=1;
+						$this->MemberAuth->updateMemberSession($SupplierLogin['Supplier']);
+						$this->MemberAuth->updateMemberType(1); // for Supplier
+						$user_info = $this->MemberAuth->get_user_detail();
+						$status = '';
+						if(!empty($user_info)){
+							$status = $user_info['status'];
+						}
+						if($status==3){
+							$this->Session->setFlash(__('Your Supplier account is closed. Please contact administrator.'),'default',array(),'error');
+							
+						}
+					//	print_r($status);die;
+					
+						if($SupplierLogin['Supplier']['process_step'] == 5){
+							$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'dashboard'));
+						}elseif($SupplierLogin['Supplier']['process_step'] == ''){
+							$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'edit_profile'));
+						}elseif($SupplierLogin['Supplier']['process_step'] == 1){
+							$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'add_new_buyer'));
+						}elseif($SupplierLogin['Supplier']['process_step'] == 2){
+							$this->redirect(array('plugin'=>'existing_buyer_manager','controller'=>'existing_buyers','action'=>'add_existing_buyer'));
+						}elseif($SupplierLogin['Supplier']['process_step'] == 3){
+							$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'make_request'));
+						}elseif($SupplierLogin['Supplier']['process_step'] == 4){
+							$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'card_detail'));
+						}
+					} else {
+						$this->Session->setFlash(__('Your account is deactivated. Please contact administrator.'),'default',array(),'error');
+						$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'login'));
+					}
+				}else{
+					$this->Session->setFlash(__('Invalid username or password, try again'),'default',array(),'error');
+					$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'login'));
+				}
+			}			
+		}
+	}
+	
+	public function enterpass($id=null){	
+		$this->set('id', $id);
+	}
+	public function enterresp($id=null){
+		$this->autoRender = false;		
+		$result=array();
+		$user = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$id)));
+		//print_r($this->request->data);die;
+		if(!empty($this->request->data['Supplier']['password'])){
+			$this->request->data['Supplier']['password']=Security::hash(Configure::read('Security.salt').$this->request->data['Supplier']['password']); 			
+			if(!empty($user)){
+				if($user['Supplier']['password']===$this->request->data['Supplier']['password'])
+				{
+					$result['error'] = 0;
+					$result['msg']='';
+				}else{
+					$result['error'] = 1;
+					$result['msg'] = 'Incorrect Password. Please enter your correct existing password.';
+				}
+			}			
+						
+		}else{
+			$result['error'] = 1;
+			$result['msg'] = 'Please enter existing password.';
+		}
+		return json_encode($result);
+	}
+	
+	public function registration(){		
+		
+		$page = $this->__load_page(49);
+		$this->set('page', $page);
+		$countries = $this->Country->country_list();
+		$this->set('countries',$countries);
+		
+		if(!empty($this->request->data) && $this->validation())
+		{
+			$realpassword = $this->request->data['Supplier']['password'];
+			$this->request->data['Supplier']['password'] = Security::hash(Configure::read('Security.salt').$this->request->data['Supplier']['password']);
+			$this->request->data['Supplier']['created_at']=date('Y-m-d H:i:s');
+			$this->request->data['Member']['status']=0;
+			$this->request->data['Supplier']['passwordurl']  = Security::hash(Configure::read('Security.salt').$this->RandomString());
+			$this->Supplier->create();
+			if($this->Supplier->save($this->request->data,array('validate'=>false))){
+				$this->__registration_mail_send($this->request->data,$realpassword);
+				
+				$this->request->data['Supplier']['password'] = $realpassword;//To Login member with Un-encrypted password
+				$supplier  = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$this->MemberAuth->id)));
+				
+				
+				//$this->Session->setFlash(__('Your account has been created successfully. Please check your mail inbox to activate your account.'),'default',array(),'success');
+				$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'registration_success'));
+				//$this->MemberAuth->updateMemberSession($supplier['Supplier']);
+				//$this->MemberAuth->login();
+			}else{
+				$this->request->data['Supplier']['password'] = $realpassword;
+			}
+		}
+	}
+	
+	public function registration_success(){
+		
+		$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		$this->System->set_seo('site_title','Success');
+		$this->System->set_data('banner_image',$page['Page']['banner_image']);
+		
+		$message = 'Your account has been created successfully. Please check your mail inbox to activate your account. Please contact us for any query or suggestion.';
+	
+		$url = Router::url('/contact-us');
+		
+		$this->set('message', $message);
+		$this->set('url', $url);
+	}
+	
+	public function active_account($str=null)
+	{	
+		$this->autoRender = false;		
+		$supplier = $this->Supplier->find('first',array('conditions'=>array('Supplier.passwordurl'=>$str)));
+		if(!empty($supplier)){
+			$this->Supplier->id = $supplier['Supplier']['id'];
+			$this->Supplier->saveField('status', 1);
+			$this->Session->setFlash(__('Your account has been activated successfully.'),'default',array(),'success');
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'login'));
+		}else {
+			
+			$this->Session->setFlash(__('Invalid link, try again.'),'default',array(),'error');
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'login'));
+			
+		}
+		
+	}
+	
+	public function logout() {
+		$this->MemberAuth->removeMemberSession();
+		$this->Session->delete('Request');
+		//$this->Session->setFlash(__('You have logged out successfully.'));
+		$this->Session->setFlash(__('You have logged out successfully.'),'default',array(),'success');
+		$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'login'));
+	}
+	
+	public function profile(){		
+		$member_id = self::_check_member_login();
+		$page = $this->Page->find('first',array('conditions'=>array('Page.id'=>50,'Page.status'=>1)));
+		if (empty($page)) {
+			throw new NotFoundException('404 Error - Page not found');
+		}
+		$this->System->set_seo('site_title',$page['Page']['page_title']);
+		$this->System->set_seo('site_metakeyword',$page['Page']['page_metakeyword']);
+		$this->System->set_seo('site_metadescription',$page['Page']['page_metadescription']);
+		if((int)Configure::read('Section.default_banner_image') && ($page['Page']['use_default_image'] || $this->System->get_setting('page','override_banner_image'))){
+			$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		}
+		$this->System->set_data('banner_image',$page['Page']['banner_image']);
+		$page['Page']['name'] = "Edit Profile";
+		
+		if(!empty($member_id)){		
+			$active_supplier = $this->Session->read('supplier_email');
+			$countries = $this->Country->country_list();
+			$this->set('countries',$countries);
+			
+			$this->Supplier->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('Supplier.country = Country.country_code_char2')))));
+			$supplier_info = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$member_id)));	
+			//print_r($supplier_info);die;		
+			$this->set('supplier_info',$supplier_info);
+		}
+		
+		$this->set('id', $page['Page']['id']);
+		$this->set('page', $page);
+	}
+	
+	
+	public function edit_profile(){
+		$member_id = self::_check_member_login();		
+		$page = $this->__load_page(50);
+		$this->set('page', $page);
+		$countries = $this->Country->country_list();
+		$this->set('countries',$countries);
+		$step = '';
+		$data = $this->Supplier->read(null,$member_id);
+		if(!empty($this->request->data['Supplier']['form']))
+		{
+				
+			$this->request->data['Supplier']['updated_at']=date('Y-m-d H:i:s');
+			//$this->request->data['Supplier']['dob']=date('YYYY-MM-DD',strtotime($this->request->data['Supplier']['dob']));
+			
+			if(empty($this->request->data['Supplier']['process_step']) || $this->request->data['Supplier']['process_step'] < 1){
+				$this->request->data['Supplier']['process_step']=1;
+			}
+		//print_r($this->request->data);die;
+			$this->Supplier->create();
+			$this->Supplier->save($this->request->data,array('validate'=>false));			
+						
+			//$this->redirect(array('action'=>'profile'));			
+				
+			if($data['Supplier']['process_step'] == ''){
+				$this->redirect(array('action'=>'success',1));	
+			}else{	
+				$this->Session->setFlash(__('Profile has been updated successfully.'),'default',array(),'success');
+				$this->redirect(array('action'=>'add_new_buyer'));	
+			}
+		}else{
+			//$data = $this->Supplier->read(null,$member_id);
+			//$data['Supplier']['dob']=date('m/d/Y',strtotime($data['Supplier']['dob']));
+			//echo '<pre>';print_r($data);die;
+			$this->request->data = $data;
+			$step = $data['Supplier']['process_step'];
+		}
+		
+		$this->set('id',$member_id);
+		$this->set('process_step',$step);
+	}
+	
+	function get_country(){
+		$this->autoRender = false;		
+		if(isset($_POST["continent"])){
+				$cont=$this->Country->country_list2($_POST["continent"]);
+				$country = $_POST["continent"];				 
+				if($country !== 'Select'){
+					$data="<select><option value=''>Select Country</option>";
+					foreach($cont as $key=>$value){
+						$data.="<option value=".$key.">". $value . "</option>";
+					}
+					$data.="</select>";
+				}
+			return $data;
+			}
+		}
+		
+	function get_new_buyer(){
+		$this->autoRender = false;	
+		$member_id = self::_check_member_login();	
+		//print_r($_POST); die;
+		if($_POST["continent"] != null && $_POST["filter"] != null && $_POST["filter"] == 'continent'){
+			$this->SupplierBuyer->recursive = -1;
+			$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$member_id)));	
+				
+			//print_r($buyer_exist); die; 
+			foreach($buyer_exist as $buyer_ex){
+				//print_r($buyer_ex); die; 
+				$new_arr[]=$buyer_ex['SupplierBuyer']['buyer_id'];
+			}	
+				//print_r($new_arr); die;
+			$condition["NOT"]=array("NewBuyer.required_feedback" =>'');
+
+			$condition['NewBuyer.continent']=$_POST["filter"];
+			if(!empty($new_arr)){
+				$condition["NOT"]=array("NewBuyer.required_feedback" =>'',"NewBuyer.id" =>$new_arr);
+			}	
+		
+			$nb_list = $this->NewBuyer->find('all',array('conditions'=>$condition, 'order'=>array('NewBuyer.id'=>'DESC')));	
+			//print_r($nb_list); die;
+			/*$this->paginate['NewBuyer'] = array(
+				'conditions'=>$condition,
+				'order' => array('Supplier.id'=>'DESC'),
+				'limit' => 10,	
+				'contain' => array('NewBuyerQuestion')	 
+			);
+			 $nb_list = $this->paginate('NewBuyer');
+		
+			$this->set('nb_list', $nb_list);
+		
+			*/
+			
+			//$cont=$this->Country->country_list2($_POST["continent"]);
+			//$country = $_POST["continent"];				 
+			//if($country !== 'Select'){
+				//$data="<select><option value=''>Select Country</option>";
+				/*foreach($nb_list as $list){
+					$data.="<option value=".$key.">". $value . "</option>";
+				}
+				$data.="</select>";
+				
+				'<tr id="sort_"'.$list['NewBuyer']['id'].'>
+					<td>
+						<div class="checkboxFive">
+							<div class="input checkbox">
+							<input id="SupplierId'.$member_id.'_" type="hidden" value="0" name="data[Supplier][id]['.$member_id.']">
+							<input id="SupplierId'.$member_id.'" type="checkbox" value="'.$list['NewBuyer']['id'].'" name="data[Supplier][id]['.$member_id.']">
+							<label for="SupplierId'.$member_id.'">'.$i.'</label>
+							</div>
+						</div>
+					</td>
+					<td>'.$i.'</td>
+					<td>'.$list['NewBuyer']['org_name'].'</td>
+					<td>'.$list['NewBuyer']['first_name'].' '.$list['NewBuyer']['middle_name'].' '.$list['NewBuyer']['last_name'].'</td>
+					<td class="ref_number"><input id="SupplierReferenceNum'.$member_id.'" class="form-control" type="text" size="45" maxlength="15" name="data[Supplier][reference_num]['.$member_id.']"></td>
+				</tr>';
+			//}*/
+			if(!empty($nb_list)){
+			return $nb_list;
+			}else{
+				return;
+			}
+		} 
+	}
+		
+	
+	public function delete_buyer($id){		
+		$this->SupplierBuyer->delete($id);			
+			$this->Session->setFlash(__('Buyer has been deleted successfully.'),'default',array(),'success');
+			$this->redirect(array('action'=>'add_new_buyer'));			
+	}
+	public function e_delete($id){		
+		$this->ExistingBuyer->delete($id);	
+		$this->Session->setFlash(__('Buyer has been deleted successfully.'),'default',array(),'success');		
+		$this->redirect(array('action'=>'eb_list'));			
+	}
+	
+	public function add_new_buyer($id=null){
+		$member_id = self::_check_member_login();
+		//$ud = $this->Session->read('Auth');
+		$active_supplier_id = $member_id;
+		$page = $this->__load_page(56);			
+		$new_arr=array();		
+		$default_co='';
+		$default_cu='';
+		if(!empty($id)){
+			$default_val=$this->Country->continent_list2($id);
+			$default_co=$default_val['Continent']['code'];
+			$default_cu=$default_val['Country']['country_code_char2'];
+		}
+		$continent=$this->Country->continent_list();		
+		$countries=$this->Country->country_list2($default_co);
+		
+		$process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$active_supplier_id), 'fields'=>array('Supplier.process_step')));
+		//print_r($process_step); die;
+		/*------new-buyer-pagin-start-----------*/
+		//$this->NewBuyer->bindModel(array('hasMany' => array('NewBuyerQuestion')), false);
+		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id), 'order'=>array('SupplierBuyer.id'=>'DESC')));	
+		//$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id),'fields' => array('SupplierBuyer.buyer_id')));		
+		foreach($buyer_exist as $buyer_ex){
+			$new_arr[]=$buyer_ex['SupplierBuyer']['buyer_id'];
+		}	
+		
+		$buyer_ques = $this->NewBuyerQuestion->find('all',array('fields'=>array('DISTINCT new_buyer_id')));
+		//echo '<pre>';print_r($buyer_ques);die;
+		foreach($buyer_ques as $buyer){
+			$buyer_arr[] = $buyer['NewBuyerQuestion']['new_buyer_id'];
+		}
+			
+	//	$condition["NOT"]=array("NewBuyer.required_feedback" =>'',"NewBuyer.email_id" =>'');
+		$condition["NOT"]=array("NewBuyer.required_feedback" =>'',"NewBuyer.email_id" =>'');
+		if(!empty($id)){
+			$condition['NewBuyer.country']=$id;
+		}
+		
+		//if(!empty($buyer_arr)){
+			$condition['NewBuyer.id']= $buyer_arr;
+			 //$condition["NOT"]=array("NewBuyer.id" =>$new_arr);
+		//}
+		
+		if(!empty($new_arr)){
+			$condition["NOT"]=array("NewBuyer.required_feedback" =>'',"NewBuyer.id" =>$new_arr);
+			 //$condition["NOT"]=array("NewBuyer.id" =>$new_arr);
+		}	
+		
+		
+		$this->paginate['NewBuyer'] = array(
+		  'conditions'=>$condition,
+		  'order' => array('Supplier.id'=>'DESC'),
+		  'limit' => 10,	
+		  'contain' => array('NewBuyerQuestion')	 
+		);
+		
+		$this->NewBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));
+		
+		$nb_list = $this->paginate('NewBuyer');	
+		
+		/*$this->find('all',array(
+        'fields'=>array('DISTINCT mobileNo','dateTime'),
+        'order'=>'Message.idTextMessage DESC',
+        'conditions' => array('Message.User_id' => $userid)));*/
+		//echo '<pre>';print_r($nb_list);die;
+		$this->set('nb_list', $nb_list);
+		/*------new-buyer-pagin-end-----------*/
+		
+		/*------Supplier-Buyer-pagin-start-----------*/		
+		$this->set('s_nb_list', $buyer_exist);
+			
+		if(!empty($this->request->data['Supplier']))
+		{	
+			$ok=0;	
+			$merge=array_combine($this->request->data['Supplier']['id'],$this->request->data['Supplier']['reference_num']);						
+			foreach($merge as $key=>$value){
+				$data['SupplierBuyer']['buyer_id']=$key;
+				$this->NewBuyer->id = $key;
+				$required_feedback = $this->NewBuyer->field('required_feedback');
+				$data['SupplierBuyer']['reference_num']=$value;
+				$data['SupplierBuyer']['required_feedback']=$required_feedback;
+				$data['SupplierBuyer']['supplier_id']=$this->request->data['Supplier']['s_id'];
+				$data['SupplierBuyer']['created_date']=date('Y-m-d H:i:s');	
+				if(!empty($data['SupplierBuyer']['buyer_id'])){
+					$this->SupplierBuyer->create();
+					if($this->SupplierBuyer->save($data,array('validate'=>false))){
+						$ok=1;
+					}				
+				}
+			}
+				
+			
+			if($process_step['Supplier']['process_step'] == 1){
+				$data1['Supplier']['id']=$active_supplier_id;
+				$data1['Supplier']['process_step']=2;	
+				$this->Supplier->create();
+				$this->Supplier->save($data1,array('validate'=>false));
+				$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'success',2));
+			}	
+			if($ok==1){						
+				$this->Session->setFlash(__('New buyer(s) has been added successfully.'),'default',array(),'success');
+				
+			}else{
+				$this->Session->setFlash(__('Something went wrong! Please try again.'),'default',array(),'error');
+			}			
+			$this->redirect(array('action'=>'add_new_buyer'));			
+		}
+		
+		$this->set(compact('active_supplier_id','continent', 'page', 'id','countries','default_co','default_cu'));	
+		$this->set('process_step',$process_step['Supplier']['process_step']);	
+	}
+	
+	public function eb_list($id=null) {
+		$loguser_id = self::_check_member_login();			
+		$total_nb='';
+		$ids='';		
+		$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		$this->System->set_seo('site_title','Supplier-Existing Buyer');
+		$this->System->set_data('banner_image',$page['Page']['banner_image']);
+		$this->paginate['ExistingBuyer'] = array(
+		  'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1),
+		  'order' => array('ExistingBuyer.id'=>'DESC'),
+		  'limit' => 10,		 
+		);
+		$eb = $this->paginate('ExistingBuyer');			
+		$this->set('existing_b', $eb);
+		if(!empty($this->request->data)){
+			$ids=$this->request->data['NewBuyer']['id'];
+			$total_nb=count($ids);	
+		}
+		$this->set('selected_nb', $ids);		
+		$this->set('total_nb', $total_nb);
+	  }
+	  
+	  public function existing_element($id=null) {
+		$loguser_id = self::_check_member_login();		
+		$req=0;
+		if(!empty($_POST['required'])){
+			$req=$_POST['required'];
+		}
+		if(!empty($_POST['nb_id'])){
+			$nb_id=$_POST['nb_id'];
+		}					
+		$this->paginate['ExistingBuyer'] = array(
+		  'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1),
+		  'order' => array('ExistingBuyer.id'=>'DESC'),
+		  'limit' => 10,		 
+		);
+		$eb = $this->paginate('ExistingBuyer');			
+		$this->set('existing_b', $eb);				
+		$this->set('total_req',$req);				
+		$this->set('nb_id',$nb_id);				
+	  }
+	  
+	 public function cancel_request($id=null) {			
+			$this->Session->delete('Request');
+			if(isset($id) && $id=='cancel'){
+				$this->Session->setFlash(__('You have cancelled the request. Please try again.'),'default',array(),'error');
+			}
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'make_request'));
+		
+		}
+		
+		
+	  public function make_request($id=null) {
+		$loguser_id = self::_check_member_login();
+		$loguser =$this->MemberAuth->get_active_member_detail();
+		$process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$loguser_id),'fields'=>array('Supplier.process_step')));		
+		$active_supplier_id=$loguser_id;
+		if(isset($id) && $id=='cancel'){
+			$this->Session->delete('Request');
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'make_request'));
+		}
+		$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		$this->System->set_seo('site_title','Supplier-Existing Buyer');
+		$this->System->set_data('banner_image',$page['Page']['banner_image']);
+		
+		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id), 'order'=>array('SupplierBuyer.id'=>'DESC')));			
+		$this->set('s_nb_list', $buyer_exist);
+		$this->set('process_step',$process_step['Supplier']['process_step']);
+	  }
+	  
+	  public function request_data($id=null) {
+		 $this->autoRender = false;		
+		 $active_supplier_id = self::_check_member_login();
+		 $process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$active_supplier_id), 'fields'=>array('Supplier.process_step')));
+		 if(!empty($this->request->data)){  
+			
+			foreach($this->request->data['Supplier']['eb_id'] as $key=>$value){
+				if($value == 0){
+					unset($this->request->data['Supplier']['eb_id'][$key]); 
+				}
+			}
+			$total=count($this->request->data['Supplier']['eb_id']);
+			$total_req=$this->request->data['Supplier']['total_req'];
+			//echo $total.'<br>';
+			//echo $total_req.'<br>';			
+			if($total<$total_req){
+				$x=$total_req-$total;
+				$this->Session->setFlash(__('You have selected less existing buyers. Please select '.$x.' existing buyers to proceed.'),'default',array(),'error');
+				if($this->request->data['Supplier']['form']=='resend'){
+					$this->redirect(array('plugin'=>'supplier_manager','controller'=>'requests','action'=>'pending_request'));
+				}else{
+					$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'make_request'));
+				}
+			}
+			if(($this->request->data['Supplier']['form']=='resend') && (!empty($this->request->data['Supplier']['req_id']))){
+			
+				$feedback_data=$this->FeedbackRequest->find('first',array('conditions'=>array('FeedbackRequest.id'=>$this->request->data['Supplier']['req_id']),'recursive'=>-1));						
+				$old_eb=json_decode($feedback_data['FeedbackRequest']['existing_buyers']);
+				$new_eb=$this->request->data['Supplier']['eb_id'];
+				$all_eb=array_merge($old_eb, $new_eb);
+				//echo '<pre>';print_r($new_eb); die;	
+				$request['selected_nb'] =$feedback_data['FeedbackRequest']['new_buyers'];
+				$request['selected_eb'] =json_encode(array_values($all_eb));;
+				$request['question_list'] =$feedback_data['FeedbackRequest']['questions'];
+				$request['additional_eb'] =$new_eb;
+				$request['is_resent'] =1;
+				$request['old_eb'] =$this->request->data['Supplier']['eb_org'];
+				$request['req_id'] =$this->request->data['Supplier']['req_id'];
+				$request['back_url'] =Router::url(array('plugin'=>'supplier_manager','controller'=>'requests','action'=>'pending_request'), true );
+				
+			}else{			
+				$data['FeedbackRequest']['existing_buyers']=json_encode(array_values($this->request->data['Supplier']['eb_id']));
+				$data['FeedbackRequest']['new_buyers']=json_encode(array_values($this->request->data['Supplier']['nb_id']));
+				$data['FeedbackRequest']['supplier_id']=$active_supplier_id;
+				
+				foreach($this->request->data['Supplier']['nb_id'] as $nb_id){
+					$total_ques = $this->NewBuyerQuestion->find('all',array('conditions'=>array('NewBuyerQuestion.new_buyer_id'=>$nb_id,'Question.status'=>1),'fields'=>array('NewBuyerQuestion.id','NewBuyerQuestion.new_buyer_id','Question.id'),'recursive'  => 2));		
+					foreach($total_ques as $total_q){
+						if(!in_array($total_q['Question']['id'], $question_arr)){
+							$question_arr[]=$total_q['Question']['id'];
+						}	
+					}		
+				}	
+						
+				$data['FeedbackRequest']['questions']=json_encode(array_values($question_arr));	
+				$request['selected_nb'] =$data['FeedbackRequest']['new_buyers'];
+				$request['selected_eb'] =$data['FeedbackRequest']['existing_buyers'];
+				$request['question_list'] =$data['FeedbackRequest']['questions'];
+				$request['is_report_sent'] = json_encode($nb);
+				$request['is_resent'] =0;
+			}	
+			$request['active_class'] =1;
+			//echo '<pre>';print_r($request); die;	
+			$this->Session->write('Request', $request);	
+			if($process_step['Supplier']['process_step'] == 3){
+				
+				$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'success',4));
+			}
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'card_detail'));
+		}elseif(!empty($request_id)){
+			$data=$this->FeedbackRequest->find('first',array('conditions'=>array('FeedbackRequest.id'=>$request_id),'recursive'  => 2));	
+			$this->set('data',$data);
+		}else{
+			$this->Session->setFlash(__('You can make a feedback request by choosing the new buyer(s) added in your account.'),'default',array(),'success');
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'make_request'));	
+		}		
+	  }
+	  
+	public function  save_card(){
+			$this->autoRender = false;		
+			if(!empty($this->request->data['Supplier']['form'])){
+				$this->request->data['Supplier']['exp_date']=$this->request->data['Supplier']['exp_month'].'/'.$this->request->data['Supplier']['exp_year'];
+					$this->Supplier->create();
+					$this->Supplier->save($this->request->data,array('validate'=>false));
+					$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'process_payment'));
+			}else{
+				$this->Session->setFlash(__('Something went wrong. Please try again.'),'default',array(),'error');
+				$this->redirect( Router::url( $this->referer(), true ) );	
+			}	
+	}
+	
+	  
+	  
+	public function process_payment($id=null,$new_eb_id=null){		
+			
+		$loguser_id = self::_check_member_login();	
+		$active_user =$this->MemberAuth->get_active_member_detail();		
+		$page = $this->Page->find('first',array('conditions'=>array('Page.id'=>50,'Page.status'=>1)));
+		if (empty($page)) {
+			throw new NotFoundException('404 Error - Page not found');
+		}
+		
+		$this->System->set_seo('site_title','Payment Process');
+		$this->System->set_seo('site_metakeyword','Payment Process');
+		$this->System->set_seo('site_metadescription','Payment Process');
+		
+		if((int)Configure::read('Section.default_banner_image') && ($page['Page']['use_default_image'] || $this->System->get_setting('page','override_banner_image'))){
+			$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		}
+		$this->System->set_data('banner_image',$page['Page']['banner_image']);
+		
+		$page['Page']['name'] = "Payment Process";
+		
+		$quantity=0;
+		$feedb_data=$this->Session->read('Request');
+		$old_eb='';
+		if(empty($feedb_data) && empty($new_eb_id)){
+			$this->redirect( Router::url( $this->referer(), true ) );
+		}		
+		$price=$this->System->get_setting('site','site_payment_fee');		
+		//echo '<pre>';print_r($feedb_data);die;
+			//$price=$this->request->data['Supplier']['amount'];
+			$sid=$loguser_id;			
+			if(($feedb_data['is_resent']==1) && (!empty($feedb_data['additional_eb']))){
+				foreach($feedb_data['additional_eb'] as $feedb_d){
+					$new_eb_id=$feedb_d;
+				}
+				$quantity=1;
+				$id=$feedb_data['req_id'];
+				$old_eb=$feedb_data['old_eb'];
+			}
+		//print_r($feedb_data);die;		
+		/*	if(empty($feedb_data['selected_eb']) && !empty($new_eb_id)){
+							
+				$feedb_data=$this->FeedbackRequest->find('first',array('conditions'=>array('FeedbackRequest.id'=>$id)));
+				$feedback_id=$feedb_data['FeedbackRequest']['id'];
+				$existing_b=json_decode($feedb_data['FeedbackRequest']['existing_buyers']);
+				$existing_b[]=$new_eb_id;
+				$feedb_data['selected_nb']=$feedb_data['FeedbackRequest']['new_buyers'];
+				$feedb_data['selected_eb']=json_encode($existing_b);
+				$feedb_data['question_list']=$feedb_data['FeedbackRequest']['questions'];
+				$feedb_data['is_resent']=1;
+				$quantity=1;
+				
+			}*/
+		
+			$s_nb=json_decode($feedb_data['selected_nb']);			
+			$string_nb_list=implode('-',$s_nb);
+			
+			$s_nb2=$feedb_data['selected_nb'];
+			
+			$s_eb=json_decode($feedb_data['selected_eb']);
+			$string_s_eb=implode('-',$s_eb);
+			
+			$s_q_list=json_decode($feedb_data['question_list']);			
+			$string_s_q_list=implode('-',$s_q_list);
+			
+			$is_resent=$feedb_data['is_resent'];			
+			$plan_name = 'Feedback Request';	
+			$all_nb_list=json_decode($s_nb2);
+			
+			$required_list=array();
+			foreach($all_nb_list as $list){
+				$sp=$this->NewBuyer->find('first', array('conditions'=>array('id'=>$list),'fields'=>array('required_feedback')));			
+				$required_list[]=$sp['NewBuyer']['required_feedback'];
+			}
+			$max_req_num=max($required_list);
+			$el=count($s_eb);
+			$var_quantity = ($el > $max_req_num ? $el : $max_req_num); 	
+				
+			if($quantity==1){
+				$var_quantity =1;
+				$custom_variable = 'sid='.$sid.'~snb='.$string_nb_list.'~seb='.$string_s_eb.'~sqlist='.$string_s_q_list.'~isresent='.$is_resent.'~new_eb='.$new_eb_id.'~req_id='.$id.'~old_eb='.$old_eb;
+			}else{				
+				$custom_variable = 'sid='.$sid.'~snb='.$string_nb_list.'~seb='.$string_s_eb.'~sqlist='.$string_s_q_list.'~isresent='.$is_resent;
+			}
+			//print_r($custom_variable);die;					
+				
+				App::import('Vendor', 'paypal', array('file' => 'paypal' . DS . 'Paypal.php'));
+				$siteurl = Router::url('/',true);
+				$myPaypal = new Paypal();
+				if(Configure::read('paypal.status') == 0){
+					$myPaypal->enableTestMode();
+				}
+				$paypal_email = trim(Configure::read('paypal.business_email'));
+				$myPaypal->addField('business', $paypal_email);
+				$myPaypal->addField('lc', 'US');
+				//$myPaypal->addField('cmd', '_xclick');
+				$myPaypal->addField('cmd', '_ext-enter');
+				$myPaypal->addField('redirect_cmd', '_xclick');
+				$myPaypal->addField('currency_code', 'EUR');
+				$myPaypal->addField('image_url', $siteurl.'/img/site/logo_1464770195_75501118.png');
+				
+				$myPaypal->addField('notify_url', Router::url(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'process_ipn',$sid), true));
+				
+				if($feedb_data['is_resent']==1){
+					$myPaypal->addField('return', Router::url(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'payment_complete',$sid,$id), true));
+					$myPaypal->addField('cancel_return', Router::url(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'payment_cancel',$sid,$id), true));
+				}else{
+					$myPaypal->addField('return', Router::url(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'payment_complete'), true));
+					
+					$myPaypal->addField('cancel_return', Router::url(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'payment_cancel',$sid), true));
+				}
+				
+				$myPaypal->addField('item_name', $plan_name);
+				$myPaypal->addField('no_shipping', number_format('0'));
+				$myPaypal->addField('amount', $price);
+				$myPaypal->addField('quantity', $var_quantity);
+				$myPaypal->addField('custom', $custom_variable);
+				$myPaypal->addField('email', $active_user['MemberAuth']['email_id']);
+				$myPaypal->addField('first_name', $active_user['MemberAuth']['first_name']);
+				$myPaypal->addField('last_name', $active_user['MemberAuth']['last_name']);
+				$myPaypal->addField('address1', $active_user['MemberAuth']['address1']);
+				$myPaypal->addField('address2', $active_user['MemberAuth']['address2']);
+				$myPaypal->addField('state', $active_user['MemberAuth']['last_name']);
+				$html='';
+				$html.= "<html>\n";
+				$html.= "<head><title>Processing Payment...</title></head>\n";
+				$html.= "<body onLoad=\"document.forms['gateway_form'].submit();\">\n";
+				$html.= "<p style=\"text-align:center;\"><h2>Please wait, your payment is under process you will be redirected to the payment gateway.</h2></p>\n";
+				$html.= "<form method=\"POST\" name=\"gateway_form\" ";
+				$html.= "action=\"" . $myPaypal->gatewayUrl . "\">\n";
+				
+				foreach ($myPaypal->fields as $name => $value)
+				{
+					//echo $name.'--'.$value.'<br />';
+					$html.= "<input type=\"hidden\" name=\"$name\" value=\"$value\"/>\n";
+				}
+				//$c = explode("-",$client_id);				
+				$html.= "</form>\n";
+				$html.= "</body></html>\n";
+				$this->set('html',$html);
+				
+			
+			$this->set('page', $page);		
+	  }
+	  
+	  function payment_cancel($str=null,$s2=null){		
+		$member_type = $this->MemberAuth->get_member_type();
+		$active_user =$this->MemberAuth->get_active_member_detail();
+		
+		$page = $this->Page->find('first',array('conditions'=>array('Page.id'=>66,'Page.status'=>1)));
+		if (empty($page)) {
+			throw new NotFoundException('404 Error - Page not found');
+		}
+		$this->System->set_seo('site_title',$page['Page']['page_title']);
+		$this->System->set_seo('site_metakeyword',$page['Page']['page_metakeyword']);
+		$this->System->set_seo('site_metadescription',$page['Page']['page_metadescription']);
+		if((int)Configure::read('Section.default_banner_image') && ($page['Page']['use_default_image'] || $this->System->get_setting('page','override_banner_image'))){
+			$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		}
+		$this->System->set_data('banner_image',$page['Page']['banner_image']);		
+		$this->Session->delete('Request');			
+		$client_id = $str;
+		if(!empty($client_id)){			
+			if(empty($member_type)){
+				$this->Session->setFlash(__('Payment process cancelled, please login.'),'default',array(),'error');
+				$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'logout'));
+			}else{
+				$this->Session->setFlash(__('Your request is not processed due to cancellation of payment. Please try again.'),'default',array(),'error');
+				if(!empty($s2)){
+					$this->redirect(array('plugin'=>'supplier_manager','controller'=>'requests','action'=>'pending_request'));
+				}
+				$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'make_request'));
+			}
+		}
+		
+		if(empty($str) || empty($client_id)){
+			throw new UnauthorizedException('404 Error - You are not authorized to access that location.');
+		}
+	}
+	  
+	 function payment_complete($str=null,$s2=null){		
+		
+		//print_r($_REQUEST['txn_id']);die;
+		if(empty($str)){
+			$client_id = self::_check_member_login();
+			$client = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$client_id)));
+			
+		}	
+		$custom_field = explode('~',$_REQUEST['custom']);
+		foreach ($custom_field as $param) {
+			$item = explode('=', $param);
+			$custom_variable[$item[0]] = $item[1];
+		}
+		if(isset($custom_variable['sid'])){
+			$client = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$custom_variable['sid'])));
+		}	
+		
+		if(!empty($client)){
+			$this->MemberAuth->updateMemberSession($client['Supplier']);
+			$this->MemberAuth->updateMemberType(1);
+			$active_user =$this->MemberAuth->get_active_member_detail();			
+						
+			$options = array();	     
+			$options['replacement'] = array('{NAME}'=>$client['Supplier']['first_name']." ".$client['Supplier']['middle_name']." ".$client['Supplier']['last_name'],'{TXN}'=>$_REQUEST['txn_id'],'{PAYMENTSTATUS}'=>$_REQUEST['payment_status'],'{AMOUNT}'=>$_REQUEST['mc_gross'],'{QUANTITY}'=>$_REQUEST['quantity'],'{MODE}'=>'Paypal');				
+			$options['to'] = $client['Supplier']['email_id']; 
+			$options['from'] = $this->System->get_setting('site','site_contact_noreply');			
+			$this->MyMail->SendMail(23,$options);
+			
+			$options2 = array();	     
+			$options2['replacement'] = array('{NAME}'=>$client['Supplier']['first_name']." ".$client['Supplier']['middle_name']." ".$client['Supplier']['last_name'],'{EMAIL}'=>$client['Supplier']['email_id'],'{TXN}'=>$_REQUEST['txn_id'],'{PAYEREMAIL}'=>$_REQUEST['payer_email'],'{PAYMENTSTATUS}'=>$_REQUEST['payment_status'],'{AMOUNT}'=>$_REQUEST['mc_gross'],'{QUANTITY}'=>$_REQUEST['quantity'],'{MODE}'=>'Paypal');				
+			$options2['to'] = $this->System->get_setting('site','site_contact_email'); 
+			$options2['from'] = $this->System->get_setting('site','site_contact_noreply');			
+			$this->MyMail->SendMail(24,$options2);
+			
+			$p_id = $this->Payment->find('first',array('conditions'=>array('Payment.txn_id'=>$_REQUEST['txn_id'])));
+			$fr = $this->FeedbackRequest->find('first',array('conditions'=>array('FeedbackRequest.payment_id'=>$p_id['Payment']['id'])));
+			$fr_id=$fr['FeedbackRequest']['id'];
+			if(isset($custom_variable['seb'])){
+				if(isset($custom_variable['new_eb'])){
+					$old_eb=$custom_variable['old_eb'];
+					$this->existing_send_mail($custom_variable['new_eb'],$fr_id,$old_eb);
+				}else{
+					$all_sb=explode('-',$custom_variable['seb']);
+					foreach($all_sb as $all_selected_b){
+						$this->existing_send_mail($all_selected_b,$fr_id);
+					}
+				}
+			}
+		
+			$this->Session->delete('Request');  
+			if($client['Supplier']['process_step']==3){
+				
+				$data1['Supplier']['id']=$client_id;
+				$data1['Supplier']['process_step']=5;	
+				$this->Supplier->create();
+				$this->Supplier->save($data1,array('validate'=>false));
+			}
+			/*successfully paid and already logged in then redirecting to success*/
+			if($client['Supplier']['status']==1 && !empty($active_user)){
+				$this->Session->setFlash(__('Your payment received successfully and feedback has been sent, please check your mailbox.'),'default',array(),'success');
+				$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'payment_success'));
+			}
+		}
+	}
+	  
+	  
+	  function process_ipn($clientId=null){
+		$this->layout='';		
+		$this->autoRender=false;
+		$this->loadModel('QuestionManager.Question');
+		
+		App::import('Vendor', 'paypal', array('file' => 'paypal' . DS . 'Paypal.php'));
+		$myPaypal = new Paypal();
+		$myPaypal->ipnLogFile = APP.'Vendor/paypal/ipn_results.log';
+		$siteurl=Router::url('/',true);
+	//	$this->loadModel('Payment');
+		
+		if(Configure::read('paypal.status') == 0){
+			$myPaypal->enableTestMode();
+		}		 
+		if($myPaypal->validateIpn()){
+		
+			if($_REQUEST['txn_type']=='subscr_cancel' || $_REQUEST['txn_type']=='subscr_payment'){
+				return false;
+			}			
+						
+			/*Extract custom variable of paypal*/		
+			
+			if($_REQUEST['txn_type']=='subscr_cancel' || $_REQUEST['txn_type']=='subscr_payment'){
+				return false;
+			}
+			
+		//	mail("jakegyl21@gmail.com","process_ipn",json_encode($_REQUEST));		
+			//$_REQUEST['custom'] = "cid=170~amount=285.00~bcy=1~temp_id=41";
+				
+			$data['FeedbackRequest']['supplier_id']=$clientId;
+			$pay['Payment']['supplier_id']=$clientId;
+			
+			/*Extract custom variable of paypal*/
+			$custom_field = explode('~',$_REQUEST['custom']);				
+			foreach ($custom_field as $param) {
+				$item = explode('=', $param);
+				$item_name=$item[0];
+				$item_data=$item[1];
+				if($item_name!='sid' && $item_name!='isresent' && $item_name!='new_eb' && $item_name!='req_id'){				
+					$item_data=json_encode(explode('-',$item_data));
+				}
+				$custom_variable[$item_name] = $item_data;				
+			}	
+			
+			$payment_date=date("Y-m-d H:i:s",strtotime($_REQUEST['payment_date']));
+			$pay['Payment']['payment_status']=$_REQUEST['payment_status'];
+			$pay['Payment']['txn_id']=$_REQUEST['txn_id'];
+			$pay['Payment']['payer_id']=$_REQUEST['payer_id'];
+			$pay['Payment']['payer_email']=$_REQUEST['payer_email'];
+			$pay['Payment']['amount']=$_REQUEST['mc_gross'];
+			//$pay['Payment']['amount']=$_REQUEST['payment_gross'];
+			$pay['Payment']['quantity']=$_REQUEST['quantity'];
+			$pay['Payment']['item_name']=$_REQUEST['item_name'];
+			$pay['Payment']['created_date']=$payment_date;	
+				
+			if(isset($custom_variable['isresent'])){
+				$data['FeedbackRequest']['is_resent']=$custom_variable['isresent'];
+			} 
+			if(isset($custom_variable['snb'])){
+				$data['FeedbackRequest']['new_buyers']=$custom_variable['snb'];
+			}
+			if(isset($custom_variable['seb'])){
+				$data['FeedbackRequest']['existing_buyers']=$custom_variable['seb'];
+			}
+			if(isset($custom_variable['sqlist'])){
+				$data['FeedbackRequest']['questions']=$custom_variable['sqlist'];
+			}
+			
+			$new_buyers = json_decode($custom_variable['snb']);
+			$nb = array();
+			foreach($new_buyers as $key=>$value){
+				$nb[$value] = "0";	
+			}	
+			$data['FeedbackRequest']['is_report_sent'] = json_decode($nb);
+			$data['FeedbackRequest']['request_status']=1;
+			$data['FeedbackRequest']['created_date']=$payment_date;
+			$descriptive_questions=$this->Question->find('all',array('conditions'=>array('Question.is_descriptive'=>1),'fields'=>'Question.id'));
+			
+			foreach($descriptive_questions as $desc){
+					$q[]=$desc['Question']['id'];
+			}
+			$data['FeedbackRequest']['descriptive_ques']=json_encode($q);
+			
+			//mail("jakegyl21@gmail.com","process_ipn",json_encode($custom_variable));
+			
+			$this->Payment->create();
+			$this->Payment->save($pay,array('validate'=>false));
+			$p_id = $this->Payment->id;
+			$data['FeedbackRequest']['payment_id']=$p_id;
+			
+		if(isset($custom_variable['req_id'])){
+				$data['FeedbackRequest']['id']=$custom_variable['req_id'];
+				$data['FeedbackRequest']['resend_date']=$payment_date;
+			}
+			$this->FeedbackRequest->create();
+			$this->FeedbackRequest->save($data,array('validate'=>false));
+			
+		}
+    }
+    
+    public function payment_success(){
+		$page = $this->__load_page(67);
+		$this->set('page', $page);	
+		$this->set('title', "Payment Successful");	
+	}
+	
+	function _randomPassword() {
+		$alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890';
+		$pass = '';
+		$alphaLength = strlen($alphabet) - 1;
+			for ($i = 0; $i < 8; $i++) {
+				$n = rand(0, $alphaLength);
+				$pass.= $alphabet[$n];
+			}
+		return $pass;
+		}
+	
+	public function existing_send_mail($id=null,$request_id=null,$old_eb=null){
+		$this->autoRender = false;
+		$this->loadModel('SupplierManager.FeedbackRequest');
+		 $loguser =$this->MemberAuth->get_active_member_detail();
+		if($id != null){
+			//$this->FeedbackRequest->bindModel(array('belongsTo' => array('Supplier')));
+			$user = $this->ExistingBuyer->find('first',array('conditions'=>array('ExistingBuyer.id'=>$id)));
+			$randompassword=self::_randomPassword();		
+			$pass = Security::hash(Configure::read('Security.salt').$randompassword);
+			
+			if(!empty($user)){
+				$request_details = $this->FeedbackRequest->find('first',array('conditions'=>array('FeedbackRequest.id'=>$request_id)));
+				
+				$name = ucfirst($user['ExistingBuyer']['first_name']).' '.ucfirst($user['ExistingBuyer']['last_name']);
+				$email = $user['ExistingBuyer']['email_id'];
+				$urlValue=md5($this->_randomString());
+				if(!empty($loguser['MemberAuth']['id'])){
+					$supplier_name = $loguser['MemberAuth']['first_name'].' '.$loguser['MemberAuth']['last_name'];
+				}else{
+					$supplier_name = $request_details['Supplier']['first_name']." ".$request_details['Supplier']['last_name'];
+				}						
+				$url=Router::url(array('plugin'=>'existing_buyer_manager','controller'=>'existing_buyers','action'=>'login',$request_id,$id,$urlValue),true);	
+							
+				//$url = base64_encode($url);
+				$options = array();
+				$options['replacement'] = array('{NAME}'=>$name,'{SUPPLIER}'=>$supplier_name,'{URL}'=>$url ,'{EMAIL}'=>$email);
+				$options['to'] = array($email); 
+				//print_r($options);die;
+				$this->MyMail->SendMail(21,$options);
+				
+				$options = array();
+				$options['replacement'] = array('{NAME}'=>$name,'{SUPPLIER}'=>$supplier_name,'{PASSWORD}'=>$randompassword);
+				$options['to'] = array($email); 
+				$this->MyMail->SendMail(22,$options);
+				
+				$login_details = array();
+				$link_expire_date = '';
+				
+				$feedback=$this->FeedbackRequest->find('first',array('conditions'=>array('FeedbackRequest.id'=>$request_id)));
+				
+				$eb_detail=$this->EbLoginDetail->find('first',array('conditions'=>array('EbLoginDetail.request_id'=>$request_id,'EbLoginDetail.existing_buyer_id'=>$id,'NOT'=>array('EbLoginDetail.resend_date'=>''))));
+			
+				$expDate = strtotime($feedback["FeedbackRequest"]["created_date"].' + 2 week');				
+				$expDate=date('Y-m-d H:i:s',$expDate);				
+				$payment_date = $feedback['FeedbackRequest']['created_date'];
+			
+				if(!empty($eb_detail)){
+					$login_details['EbLoginDetail']['id'] = $eb_detail['EbLoginDetail']['id'];
+					$login_details['EbLoginDetail']['is_link_expire'] = 2;
+					$login_details['EbLoginDetail']['eb_status'] = 3;
+				}else{
+					$login_details['EbLoginDetail']['is_link_expire'] = 0;
+					$login_details['EbLoginDetail']['eb_status'] = 1;
+					$login_details['EbLoginDetail']['link_expire_date'] = $expDate;
+					$login_details['EbLoginDetail']['payment_date'] = $payment_date;
+				}
+				$login_details['EbLoginDetail']['request_id']= $request_id;
+				$login_details['EbLoginDetail']['existing_buyer_id']= $id;
+				$login_details['EbLoginDetail']['password']= $pass;
+				$login_details['EbLoginDetail']['passwordurl'] =  $urlValue;
+				
+				$this->EbLoginDetail->create();
+				$this->EbLoginDetail->save($login_details,array('validate'=>false));
+				if(!empty($old_eb)){
+					$this->EbLoginDetail->updateAll(array('EbLoginDetail.is_link_expire' =>3),array('EbLoginDetail.request_id' => $request_id,'EbLoginDetail.existing_buyer_id' =>$old_eb));
+				}
+			}
+		}
+	} 
+	 
+	
+	public function card_detail($request_id=null) {
+		if(!$this->Session->read('Request')){
+			$this->Session->setFlash(__('Make a request here, then make payment.','default',array(),'error'));
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'make_request'));
+			
+		}
+		$request = $this->Session->read('Request');	
+		$loguser_id = self::_check_member_login();
+		$loguser =$this->MemberAuth->get_active_member_detail();
+		$process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$loguser_id),'fields'=>array('Supplier.process_step')));				
+		$question_arr=array();
+		$date=array();
+		$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		$this->System->set_seo('site_title','Save Card Details');
+		$this->System->set_data('banner_image',$page['Page']['banner_image']);
+		$this->request->data = $this->Supplier->read(null,$loguser_id);
+		if($this->request->data['Supplier']['exp_date']){
+			$date=explode('/',$this->request->data['Supplier']['exp_date']);		
+			$this->request->data['Supplier']['exp_month']=$date[0];
+			$this->request->data['Supplier']['exp_year']=$date[1];
+		}
+		$this->set('supplier_id', $loguser_id);	
+		if($process_step['Supplier']['process_step'] == 3){
+			$process_step['Supplier']['process_step'] =4;
+		}
+		$this->set('process_step', $process_step['Supplier']['process_step']);	
+		$this->set('request', $request);	
+		//echo $process_step['Supplier']['process_step']; die;
+	  }
+	  
+	  
+	  public function check_eb($id=null) {
+		 $this->autoRender = false;				
+		if(!empty($this->request->data['nb_id'])){
+			//print_r($this->request->data); die;
+			foreach($this->request->data['nb_id'] as $nb_id){
+				$r_feed='';
+				//echo $nb_id;
+				$r_feed=$this->NewBuyer->find('first', array('conditions'=>array('NewBuyer.id'=>$nb_id,'NewBuyer.status'=>1),'fields' => array('NewBuyer.required_feedback')));
+				if(!empty($r_feed)){
+					$count[]=$r_feed['NewBuyer']['required_feedback'];
+				}
+			}			
+			$required = max($count);
+		}
+		$loguser_id = self::_check_member_login();	
+		$eb = $this->ExistingBuyer->find('all', array('conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'status'=>1)));
+		$total_exist = count($eb);
+	
+		if($total_exist>=$required){
+			$eb_count['success']=1;
+			$eb_count['req']=$required;
+		}else{
+			$r=$required-$total_exist;
+			$eb_count['error']=1;
+			$eb_count['msg']='You have less existing buyer added than required. Add '.$r.' more existing buyer(s) to complete the process.';
+		}
+		//print_r($eb_count);die;
+		return json_encode($eb_count);
+	  }
+	
+	 function __load_page($id=null){
+		 		
+		$this->loadModel('ContentManager.Page');
+		$page = $this->Page->find('first',array('conditions'=>array('Page.id'=>$id,'Page.status'=>1)));
+		if (empty($page)) {
+			throw new NotFoundException('404 Error - Page not found');
+		}
+		//print_r($page);die;
+		$this->System->set_seo('site_title',$page['Page']['page_title']);
+		$this->System->set_seo('site_metakeyword',$page['Page']['page_metakeyword']);
+		$this->System->set_seo('site_metadescription',$page['Page']['page_metadescription']);
+		if((int)Configure::read('Section.default_banner_image') && ($page['Page']['use_default_image'] || $this->System->get_setting('page','override_banner_image'))){
+			$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		}
+		$this->System->set_data('banner_image',$page['Page']['banner_image']);
+		
+		return $page;
+	}
+	
+	private function __registration_mail_send($mail_data,$password=null)
+	{
+		$linkmerge=Configure::read('Site.url').'/supplier_manager/suppliers/active_account/'.$mail_data['Supplier']['passwordurl'];
+		//mail to user
+		$options = array();
+		$options['replacement'] = array(
+		'{NAME}'=>$this->request->data['Supplier']['title']." ".$this->request->data['Supplier']['first_name']." ".$this->request->data['Supplier']['middle_name']." ".$this->request->data['Supplier']['last_name'],'{url}'=>$linkmerge);			
+		$options['to'] = array($this->request->data['Supplier']['email_id']); 		
+		$this->MyMail->SendMail(14,$options);
+		
+		//mail to admin
+		$options = array();	
+		$options['replacement'] = array('{NAME}'=>$this->request->data['Supplier']['title']." ".$this->request->data['Supplier']['first_name']." ".$this->request->data['Supplier']['middle_name']." ".$this->request->data['Supplier']['last_name'],'{ADDRESS}'=>$this->request->data['Supplier']['address1']." ".$this->request->data['Supplier']['address2'],'{CITY}'=>$this->request->data['Supplier']['city'],'{STATE}'=>$this->request->data['Supplier']['state'],'{ZIP}'=>$this->request->data['Supplier']['zipcode'],'{COUNTRY}'=>$this->request->data['Supplier']['country'],'{EMAIL}'=>$this->request->data['Supplier']['email_id']);		
+		$options['to'] = $this->System->get_setting('site','site_contact_email'); 
+		$options['from'] = $this->System->get_setting('site','site_contact_noreply');	
+		$this->MyMail->SendMail(15,$options);
+	}
+	
+	function RandomString() {
+		$characters = '$&@!0123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+		$randstring = '';
+		for ($i = 0; $i < 15; $i++) {
+			$arr1 = str_split($characters);
+			$randstring .= $arr1[rand(0, $i)];
+		}
+		return $randstring;
+	}
+	
+	public function dashboard(){
+		//$pDate = strtotime('2016-07-05 00:10:12 + 2 week');
+		//echo date('Y-m-d H:i:s',$pDate);die;
+		$page = $this->__load_page(52);
+		$this->set('page', $page);
+		//$active_user_id = self::_check_member_login();
+		
+	}
+	
+	public function forgot(){
+		/*$loguser_id = self::_check_member_login();	
+		if($loguser_id){
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'logout'));
+		}*/
+		$page = $this->__load_page(53);
+		$this->set('page', $page);
+	
+		if(!empty($this->request->data)){
+			$name ='';
+			$username = '';
+			$email = '';
+			$user = array();
+			$url = '';
+			$user_type = '';
+			$urlValue=md5($this->_randomString());		
+			$user = $this->Supplier->find('first',array('conditions'=>array('Supplier.email_id'=>$this->request->data['Supplier']['email_id'])));
+			if(!empty($user)){
+				$name = ucfirst($user['Supplier']['first_name']).' '.ucfirst($user['Supplier']['last_name']);
+				$email = $user['Supplier']['email_id'];
+				unset($user['Supplier']['password']);
+				$user['Supplier']['passwordurl'] =  $urlValue;
+				$this->Supplier->create();
+				$this->Supplier->save($user,array('validate'=>false));
+			}		
+			if(!empty($user)){								
+				$url=Router::url(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'passwordurl',$user['Supplier']['passwordurl']),true);				
+				$options = array();
+				$options['replacement'] = array('{NAME}'=>$name,'{USERNAME}'=>$email,'{URL}'=>$url);
+				$options['to'] = array($email); 
+				$this->MyMail->SendMail(17,$options);
+				$this->Session->setFlash(__('Mail with reset password link will be sent to '.$email.'. Please follow the instructions to reset your password.'),'default',array(),'success');
+				$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'login'));
+			}else{
+				$this->Session->setFlash(__('We are sorry for the inconvenience, the email address you entered is not registered with us.'),'default',array(),'error');
+			}
+		}
+	}
+	
+	function validation1($returnType = 'json'){
+		$this->autoRender = false;
+		if(!empty($this->request->data)){
+			$result = array();
+			if(!empty($this->request->data['Supplier']['form'])){
+				$this->Supplier->setValidation($this->request->data['Supplier']['form']);
+			}
+			$this->Supplier->set($this->request->data);
+			if($this->Supplier->validates()){
+					$result['error'] = 0;
+				}else{
+					$result['error'] = 1;
+					$this->Session->setFlash(__('Please fill all the required fields'),'default',array(),'error');
+				}
+			$errors = array();
+			$result['errors'] = $this->Supplier->validationErrors;
+			foreach($result['errors'] as $field => $data){
+			  $errors['Supplier'.Inflector::camelize($field)] = array_pop($data);
+			}
+			$result['errors'] = $errors;
+			$view = new View();
+			
+			$result['error_message'] = $view->element('admin/message');
+			echo json_encode($result);
+			return;
+		}
+		echo json_encode(array());
+	}
+	
+	public function passwordurl($str=null){		
+		//$this->layout='Payroll';
+		$page = $this->__load_page(53);
+		$this->set('page', $page);
+		$user = $this->Supplier->find('first',array('conditions'=>array('Supplier.passwordurl'=>$str)));
+	
+	if(!empty($user) && !empty($str)){
+		
+		if(!empty($this->request->data)){
+        //print_r($this->request->data);die;				
+					if($this->request->data['Supplier']['password']==$this->request->data['Supplier']['confirm_pass']){
+						$this->request->data['Supplier']['id']=$user['Supplier']['id'];
+						$this->request->data['Supplier']['passwordurl']='';
+						$this->request->data['Supplier']['password']=Security::hash(Configure::read('Security.salt').$this->request->data['Supplier']['password']); 
+						$this->Supplier->create();
+						$this->Supplier->save($this->request->data);
+						$this->Session->setFlash(__('Your Password has been changed successfully. Please Login.'),'default',array(),'success');
+						$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'login'));
+					}else{
+						$this->Session->setFlash(__('Password and Confirm password does not match, Please try again.'),'default',array(),'error');
+					}
+				}
+		
+			$this->set('str',$str);
+		}else{
+			//echo 21;die;
+			//throw new NotFoundException('404 Error - Client not found');
+			//$this->Session->setFlash('Invalid link, try again','default','msg','error');
+			$this->Session->setFlash(__('Invalid link, Please try again.'),'default',array(),'error');
+			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'login'));
+			
+		}
+	}
+	
+	public function payment_history() {
+		
+		$loguser_id = self::_check_member_login();
+		$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		$this->System->set_seo('site_title','Payment History');
+		$this->System->set_data('banner_image',$page['Page']['banner_image']);
+		
+		
+		$this->paginate = array();
+		$this->paginate['limit']=10;
+		$condition=array();
+		$condition['Payment.supplier_id'] = $loguser_id;
+		$payments = array();
+		$this->paginate['order']=array('Payment.id'=>'DESC');
+		$payments= $results=$this->paginate("Payment",$condition);
+		
+		$this->set('payments',$payments);
+	}
+	
+	public function payment_view($id=null) {
+		
+		$loguser_id = self::_check_member_login();
+		$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		$this->System->set_seo('site_title','Payment View');
+		$this->System->set_data('banner_image',$page['Page']['banner_image']);
+		
+		$payment=$this->Payment->find('first',array('conditions'=>array('Payment.id'=>$id)));
+		
+		$existing_buyers=json_decode($payment['FeedbackRequest']['existing_buyers']);
+		$existing_buyers_list=$this->ExistingBuyer->find('all',array('conditions'=>array('ExistingBuyer.id'=>$existing_buyers)));
+
+		$new_buyers=json_decode($payment['FeedbackRequest']['new_buyers']);
+		$new_buyers_list=$this->NewBuyer->find('all',array('conditions'=>array('NewBuyer.id'=>$new_buyers)));
+		//print_r($new_buyers_list);die;
+		$this->set('existing_buyers_list',$existing_buyers_list);
+		$this->set('new_buyers_list',$new_buyers_list);
+		$this->set('payment',$payment);
+	}
+	
+	public function success($step=null){
+		
+		$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		$this->System->set_seo('site_title','Success');
+		$this->System->set_data('banner_image',$page['Page']['banner_image']);
+		
+		if($step == 1){
+			$message = 'Profile has been updated successfully.';
+		}elseif($step == 2){
+			$message = 'New buyer(s) has been added successfully.';
+		}elseif($step == 3){
+			$message = 'Existing Buyer(s) has been Added Successfully';
+		}elseif($step == 4){
+			$message = 'Your request has been submitted successfully. Continue to make payment.';
+		}
+		
+		
+		if($step == 1){
+			$url = Router::url(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'add_new_buyer'));
+		}elseif($step == 2){
+			$url = Router::url(array('plugin'=>'existing_buyer_manager','controller'=>'existing_buyers','action'=>'add_existing_buyer'));
+		}elseif($step == 3){
+			$url = Router::url(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'make_request'));
+		}elseif($step == 4){
+			$url = Router::url(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'card_detail'));
+		}
+		
+		$this->set('message', $message);
+		$this->set('url', $url);
+	}
+}
+?>

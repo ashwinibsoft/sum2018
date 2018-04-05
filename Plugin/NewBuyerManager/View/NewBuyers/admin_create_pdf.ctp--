@@ -1,0 +1,81 @@
+<?php
+ 
+App::import('Vendor','xtcpdf');
+ 
+$pdf = new XTCPDF('L', PDF_UNIT, 'A4', true, 'UTF-8', false);
+
+// set default header data
+$pdf->SetHeaderData(PDF_HEADER_LOGO, PDF_HEADER_LOGO_WIDTH, PDF_HEADER_TITLE, PDF_HEADER_STRING);
+
+// set header and footer fonts
+$pdf->setHeaderFont(Array(PDF_FONT_NAME_MAIN, '', PDF_FONT_SIZE_MAIN));
+$pdf->setFooterFont(Array(PDF_FONT_NAME_DATA, '', PDF_FONT_SIZE_DATA));
+
+// set default monospaced font
+$pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
+
+// set margins
+$pdf->SetMargins(PDF_MARGIN_LEFT, PDF_MARGIN_TOP, PDF_MARGIN_RIGHT);
+$pdf->SetHeaderMargin(PDF_MARGIN_HEADER);
+$pdf->SetFooterMargin(PDF_MARGIN_FOOTER);
+
+// set auto page breaks
+$pdf->SetAutoPageBreak(TRUE, PDF_MARGIN_BOTTOM);
+
+// set image scale factor
+$pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
+
+
+// set default font subsetting mode
+$pdf->setFontSubsetting(true);
+
+// set font
+//$pdf->SetFont('times', 'BI', 12);
+$pdf->AddPage();
+$site=Configure::read('Site');
+$html = '<img src="'.$site['url'].'/img/site/temp/logo_1464343299_59359746_180_50.jpg">';
+$html .= '</pre><h1>New Buyers</h1><pre>';
+
+$html .= '<table style="width:800px; text-align:left;border: 1px solid #eee;" border="0" cellpadding="0" cellspacing="0"><thead>';
+$html .= '<tr>
+			<th style="padding:10px; background-color:#f45661; color:#fff;border-right: 1px solid #000;">Organisation Name</th>
+            <th style="padding:10px; background-color:#f45661; color:#fff;border-right: 1px solid #000;">First Name</th>
+            <th style="padding:10px; background-color:#f45661; color:#fff;border-right: 1px solid #000;">Middle Name</th>
+            <th style="padding:10px; background-color:#f45661; color:#fff;border-right: 1px solid #000;">Last Name</th>
+            <th style="padding:10px; background-color:#f45661; color:#fff;border-right: 1px solid #000;">Contact Number</th>
+            <th style="padding:10px; background-color:#f45661; color:#fff;border-right: 1px solid #000;">Email Address</th>
+			<th style="padding:10px; background-color:#f45661; color:#fff;border-right: 1px solid #000;">Designation</th>
+			<th style="padding:10px; background-color:#f45661; color:#fff;border-right: 1px solid #000;">State</th>
+			<th style="padding:10px; background-color:#f45661; color:#fff;border-right: 1px solid #000;">Country</th>
+			<th style="padding:10px; background-color:#f45661; color:#fff;border-right: 1px solid #000;">Required Feedback</th>
+        </tr></thead><tbody>';
+        
+    if(!empty($n_buyers)){
+		foreach ( $n_buyers as $n_buyer ){
+			$html .= '<tr>
+		 <td style="padding:10px;border-right: 1px solid #000;border-bottom: 1px solid #000;">'.$n_buyer['NewBuyer']['org_name'].'</td>
+		<td style="padding:10px;border-right: 1px solid #000;border-bottom: 1px solid #000;">'.$n_buyer['NewBuyer']['first_name'].'</td>
+		<td style="padding:10px;border-right: 1px solid #000;border-bottom: 1px solid #000;">'.$n_buyer['NewBuyer']['middle_name'].'</td>
+        <td style="padding:10px;border-right: 1px solid #000;border-bottom: 1px solid #000;">'.$n_buyer['NewBuyer']['last_name'].'</td>
+         <td style="padding:10px;border-right: 1px solid #000;border-bottom: 1px solid #000;">'.$n_buyer['NewBuyer']['contact_number'].'</td>
+        <td style="padding:10px;border-right: 1px solid #000;border-bottom: 1px solid #000;">'.$n_buyer['NewBuyer']['email_id'].'</td>
+         <td style="padding:10px;border-right: 1px solid #000;border-bottom: 1px solid #000;">'.$n_buyer['NewBuyer']['designation'].'</td>
+        <td style="padding:10px;border-right: 1px solid #000;border-bottom: 1px solid #000;">'.$n_buyer['NewBuyer']['state'].'</td>
+        <td style="padding:10px;border-right: 1px solid #000;border-bottom: 1px solid #000;">'.$n_buyer['NewBuyer']['country'].'</td> 
+        <td style="padding:10px;border-right: 1px solid #000;border-bottom: 1px solid #000;">'.$n_buyer['NewBuyer']['required_feedback'].'</td>
+		</tr>';
+		}
+	}else{
+		$html .= '<tr><td style="padding:10px;border-right: 1px solid #eeeeee;border-bottom: 1px solid #eeeeee;" colspan="7">No data To Show</td></tr>';
+	}
+    
+ 
+$html .= '</tbody></table>';
+
+$pdf->writeHTML($html, true, false, true, false, '');
+ 
+$pdf->lastPage();
+//$currntdate=date('d/m/Y-H:i:s'); 
+echo $pdf->Output('newbuyer_list('.$currntdate.').pdf', 'D');
+
+?>
