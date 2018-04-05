@@ -1,0 +1,32 @@
+<?php
+$config = array();
+$config['Path']['Banner'] =  WWW_ROOT.'img'.DS.'banner'.DS;
+$config['Path']['Gallery'] =  WWW_ROOT.'img'.DS.'gallery'.DS;
+$config['Path']['PageTemplate'] ='pagetemplates'.DS;
+$config['Path']['NoImage'] =  WWW_ROOT.'img'.DS.'site'.DS.'noimage.jpg';
+$config['Admin']['Limit'] = 20;
+/***These below code is used  for admin purpose*/
+$config['image_list_width'] = "80";
+$config['image_list_height'] = "80";
+$config['image_edit_width'] = "120";
+$config['image_edit_height'] = "120";
+$config['image_front_width'] = "220";
+$config['image_front_height'] = "200";
+
+/**Belowe code is used for front banner image on front**/
+$config['banner_image_width']="1400";
+$config['banner_image_height']="350";
+
+/**Below code for template page***/
+$template_destination=$config['Path']['PageTemplate'];
+
+	$config['PageTemplate']=array(
+		'default.ctp'=>'Default Template',
+		$template_destination.'winter.ctp'=>'Winter Template',
+		$template_destination.'snowfall.ctp'=>'Snowfall Template',
+		$template_destination.'green_windows.ctp'=>'Green Windows Template',
+		$template_destination.'simple_orange.ctp'=>'Simple Orange Template'
+	);
+
+
+?>

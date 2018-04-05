@@ -1,0 +1,180 @@
+<?php echo $this->element('admin/message');?>
+<?php echo $this->Form->create('Page',array('name'=>'pages','action'=>'settings','onsubmit'=>'//return validatefields();','type'=>'file'))?>
+<?php echo $this->Form->hidden('form',array('value'=>'page_settings')); ?>
+<?php echo $this->Form->hidden('url_back_redirect',array('value'=>$referer_url)); ?>
+	<div class="row">
+		<div class="col-md-8">
+			<div class="grid simple horizontal green no-margin-grid">
+				<div class="grid-title no-border">
+					<h4>Default <span class="semi-bold">Banner Image</span></h4>
+					<div class="tools"> 
+						<a class="collapse" href="javascript:;"></a>
+					</div>
+				</div>
+				<div class="grid-body no-border">
+					<div class="row">
+						<div class="form-group">
+							<div class="controls">
+							<?php echo $this->Form->file('banner_image',array('required'=> false, 'style'=>'border:0;')); ?>
+							<?=$this->Form->error('banner_image',null,array('wrap' => 'span', 'class' => 'error')); ?>
+							<span style="color:red;"></span> <span class="help">(Only png, gif, jpg, jpeg types are allowed. Best image dimension <?php printf("%spx X %spx",Configure::read('banner_image_width'),Configure::read('banner_image_height')); ?>)</span>
+							<div id="banner-image-showcase"  style="padding-top: 19px">
+							<?php 
+								/* Resize Image */
+								if(!empty($this->data['Page']['banner_image']) && file_exists(Configure::read('Path.Banner').$this->data['Page']['banner_image'])) {
+									$imgArr = array('source_path'=>Configure::read('Path.Banner'),'img_name'=>$this->data['Page']['banner_image'],'width'=>Configure::read('default_banner_thumb_width'),'height'=>Configure::read('default_banner_thumb_height'),'noimg'=>Configure::read('Path.NoImage'));
+									$resizedImg = $this->ImageResize->ResizeImage($imgArr);
+									echo $this->Html->image($resizedImg,array('border'=>'0','id'=>'default-banner-image'));
+								}
+								//echo $this->Html->image('banner/'.$this->data['Page']['banner_image'],array('border'=>'0','id'=>'default-banner-image'));
+							?>
+							<?php if(!empty($this->data['Page']['banner_image']) && file_exists(Configure::read('Path.Banner').$this->data['Page']['banner_image'])) {?>
+							<div class="checkbox check-primary checkbox-circle" style="float:left;margin-right:-10px">
+								<?php echo $this->Form->checkbox('override_banner_image',array('label'=>'Mark')); ?>
+								<?php echo $this->Form->label('override_banner_image', 'Set as default'); ?>
+							</div> 
+							<div style="float:right;">
+								<?php $this->image_types = getimagesize(Configure::read('Path.Banner').$this->data['Page']['banner_image']); ?>
+								<?php $width = Configure::read('banner_image_width');?>
+								<?php $height = Configure::read('banner_image_height');?>
+								<?php if($this->image_types[0] > $width && $this->image_types[1] > $height){ ?>
+									<a data-toggle="modal" data-id="banner_crop image" class="tip link-color" data-original-title="Crop image"  href="#viewDetail">Crop this image.?
+										</a> | 
+								<?php } ?>
+								
+								<a href="<?php echo Router::url(array('plugin'=>'content_manager','controller'=>'pages','action'=>'delete_default_banner_image')); ?>" class="remove_banner_ajax" target="_blank">Remove this image</a>
+								<script type="text/javascript">
+									$(document).ready(function(){
+										$('.remove_banner_ajax').bind('click',function(){
+											$.post( $(this).attr('href'), function( data ) {
+												$('#banner-image-showcase').html('');
+												
+											});
+											return false;
+											});
+										
+										});
+								</script>
+							</div>
+							<?php } ?>
+							</div>
+							</div>
+						</div>
+					</div>
+					
+				</div>
+			</div>
+		</div>
+		<div class="col-md-4">
+			<div class="grid simple horizontal green no-margin-grid">
+				<div class="grid-title no-border">
+					<h4>Home <span class="semi-bold">Page</span></h4>
+					<div class="tools">
+						<a href="javascript:;" class="collapse"></a>
+					</div>
+				</div>
+				<div class="grid-body no-border">
+					<div class="row">
+						<?php 
+							echo $this->Page->page_select_mutlilevel('default_home_page',array('options'=>array(),'label' => false,'div'=>false,'empty'=>'Not Selected','class'=>'simple-dropdown','style'=>'width:100%'),$page_list,(empty($this->request->data['Page']['default_home_page'])?'':$this->request->data['Page']['default_home_page']));
+						?> 
+					</div>
+				</div>
+			</div>
+			<div class="grid simple horizontal green no-margin-grid">
+				<div class="grid-title no-border">
+					<h4>Special <span class="semi-bold">Page</span></h4>
+					<div class="tools">
+						<a href="javascript:;" class="collapse"></a>
+					</div>
+				</div>
+				<div class="grid-body no-border">
+					<div class="row">
+						<?php 
+							echo $this->Page->page_select_mutlilevel('special_page',array('options'=>array(),'label' => false,'div'=>false,'empty'=>'Not Selected','class'=>'simple-dropdown','style'=>'width:100%'),$page_list,(empty($this->request->data['Page']['special_page'])?'':$this->request->data['Page']['special_page']));
+						?> 
+					</div>
+				</div>
+			</div>
+			<div class="grid simple horizontal green no-margin-grid">
+				<div class="grid-title no-border">
+					<h4>Home <span class="semi-bold">Page Blocks</span></h4>
+					<div class="tools">
+						<a href="javascript:;" class="collapse"></a>
+					</div>
+				</div>
+				<div class="grid-body no-border">
+					<div class="row">
+						<?php 
+							echo $this->Page->page_checkbox_multilevel('home_page_blocks.',array('options'=>array(),'label' => false,'div'=>false,'empty'=>'Not Selected','style'=>'width:100%','hiddenField'=>true),$page_list,$this->request->data['Page']['home_page_blocks']);
+						?> 
+					</div>
+				</div>
+			</div>
+		</div>
+		<?php /*<div class="col-md-4">
+			
+		</div>
+		<div class="col-md-4">
+			
+		</div>*/?>
+	
+	</div>
+<?php echo $this->element('admin/forms/form_submit',array('referer_url'=>$referer_url)); ?>
+<?php echo $this->Form->end();?>
+<?php echo $this->element('admin/crop',array('form_action'=>Router::url(array('plugin'=>'content_manager','controller'=>'pages','action'=>'admin_default_banner_image_crop')),
+									'image'=>$this->webroot.'img/banner/'.$this->data['Page']['banner_image'],
+									'width'=>Configure::read('banner_image_width'),
+									'height'=>Configure::read('banner_image_height'),
+									'id'=>'viewDetail')); ?>
+<script type="text/javascript">
+	$(document).ready(function(){
+		
+	$('#PageSettingsForm').submit(function(){
+		
+		//var data = $(this).serializeArray();
+		var data = new FormData(this);
+		var form = $(this);
+		var status = 0;
+		$.each(this,function(i,v){
+			$(v).removeClass('invalid form-error');
+			});
+		$('.error,.alert').remove();
+		
+		$('#ajax-loader-button').show();
+		$('#PageCms > span#for_owner_cms').show();
+		$('#PageCms > button[type=submit]').attr({'disabled':true});
+		
+		$.ajax({
+			url: '<?php echo Router::url(array('plugin'=>'content_manager','controller'=>'pages','action'=>'ajax_validation','json','admin'=>false)); ?>',
+			async: false,
+			data: data,
+			dataType:'json', 
+			type:'post',
+			cache: false,
+			contentType: false,
+			processData: false,
+			success: function(data) {
+				
+				if(data.error==1){
+					$.each(data.errors,function(i,v){
+						$('#'+i).addClass("invalid form-error").after('<span class="error">'+v+'</span>');
+					});
+					form.before(data.error_message);
+					$('#ajax-loader-button').hide();
+				}else{
+					status = 1;
+				}
+			}
+		});
+		if(status==0){
+			$("html, body").animate({ scrollTop: 0 }, "slow");
+			$('#PageCms > button[type=submit]').attr({'disabled':false});
+		}
+	return (status===1)?true:false; 
+	 
+	});
+});
+
+</script>
+

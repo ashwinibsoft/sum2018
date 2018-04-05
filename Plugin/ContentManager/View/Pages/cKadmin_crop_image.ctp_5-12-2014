@@ -1,0 +1,96 @@
+<div class="page-title"></div>
+
+<div class="row">
+	<div class="col-md-12" style="overflow:scroll;">
+		<div style="margin: 0 0.3em; " class="frame">
+			<!--<img src="<?php echo Router::url('/img/banner/')?><?php echo $page_detail['Page']['banner_image'];?>" id="photo" height="auto">-->
+			<?php echo $this->Html->image(Configure::read('Folder.Banner').DS.$page_detail['Page']['banner_image'],array('id'=>'photo')); ?>
+		</div>
+	</div>
+</div>
+
+
+
+
+
+	<?php $ratio  = Configure::read('image_crop_ratio');?>
+	<script type="text/javascript">
+		function preview(img, selection) {
+			if (!selection.width || !selection.height)
+			return;
+    
+			
+
+		$('#x1').val(selection.x1);
+		$('#y1').val(selection.y1);
+		$('#x2').val(selection.x2);
+		$('#y2').val(selection.y2);
+		$('#w').val(selection.width);
+		$('#h').val(selection.height); 
+	}
+		$(function () {
+			$('#photo').imgAreaSelect({ aspectRatio: '<?php echo $ratio;?>', handles: true,
+			fadeSpeed: 200,onSelectChange: preview });
+		});
+	</script>
+	<div class="container demo" style="width:750px">
+	  <div style="float: left; width: 50%;">
+		<p class="instructions">
+		  Click and drag on the image to select an area. 
+		</p>
+	 <?php echo $this->Form->create();?>
+		
+	  </div>
+	 
+	  <div style="float: left; width: 100%;">
+		<p style="font-size: 110%; font-weight: bold; padding-left: 0.1em;">
+		 
+		</p>
+	  
+		
+		<table style="margin-top: 1em;">
+		  <thead>
+			<tr>
+			  <th style="font-size: 110%; font-weight: bold; text-align: left; padding-left: 0.1em;" colspan="2">
+				<!--Coordinates-->
+			  </th>
+			  <th style="font-size: 110%; font-weight: bold; text-align: left; padding-left: 0.1em;" colspan="2">
+				<!--Dimensions-->
+			  </th>
+			</tr>
+		  </thead>
+		  <tbody>
+			<tr>
+			  <td style="width: 10%;"></td>
+				  <td style="width: 30%;"><input type="hidden" value="-" id="x1" name="start_width"></td>
+				  <td style="width: 20%;"></td>
+				<td><input type="hidden" id="w" value="-" name="width"></td>
+			</tr>
+			<tr>
+			  <td></td>
+			  <td><input type="hidden" value="-" id="y1" name="start_height"></td>
+			  <td></td>
+			  <td><input type="hidden" value="-" id="h" name="height"></td>
+			</tr>
+			<tr>
+			  <td></td>
+			  <td><input type="hidden" value="-" id="x2"></td>
+			  <td></td>
+			  <td></td>
+			</tr>
+			<tr>
+			  <td></td>
+			  <td><input type="hidden" value="-" id="y2"></td>
+			  <td></td>
+			  <td></td>
+			</tr>
+		  </tbody> 
+		</table>
+		<button class="btn btn-primary btn-lg btn-large" type="submit">Submit</button>
+		<?php echo $this->Form->end();?>
+	  </div>
+	</div>
+
+
+
+	
