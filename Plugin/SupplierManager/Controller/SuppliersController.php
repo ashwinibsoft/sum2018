@@ -1292,18 +1292,25 @@ Class SuppliersController extends SupplierManagerAppController{
 		$loguser_id = self::_check_member_login();
 			
 		$loguser =$this->MemberAuth->get_active_member_detail();
-		$process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$loguser_id),'fields'=>array('Supplier.process_step')));		
+		
+		$process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$loguser_id),'fields'=>array('Supplier.process_step')));	
+			
 		$active_supplier_id=$loguser_id;
+		
 		if(isset($id) && $id=='cancel'){
+			
 			$this->Session->delete('Request');
+			
 			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'make_request'));
 		}
+		
 		$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
+		
 		$this->System->set_seo('site_title','Supplier-Existing Buyer');
+		
 		$this->System->set_data('banner_image',$page['Page']['banner_image']);
 		
 		$this->SupplierBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));
-		
 		
 		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id), 'order'=>array('SupplierBuyer.id'=>'DESC')));	
 		
@@ -1311,45 +1318,36 @@ Class SuppliersController extends SupplierManagerAppController{
 		
 		$eb_req = $this->EbLoginDetail->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'EbLoginDetail.eb_status'=>2,'EbLoginDetail.is_link_expire'=>1),'order'=>array('EbLoginDetail.id'=>'DESC'),'fields'=>array('EbLoginDetail.request_id')));	
 		
-// for exired existing buyer
+		
+      /*==========================GET EXPIRED EXISTING BUYER==================================*/
 
-	$eb_expire = $this->EbLoginDetail->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'EbLoginDetail.eb_status'=>2,'EbLoginDetail.is_link_expire'=>1),'fields'=>array('EbLoginDetail.existing_buyer_id')));
+	    $eb_expire = $this->EbLoginDetail->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'EbLoginDetail.eb_status'=>2,'EbLoginDetail.is_link_expire'=>array(1,3)),'fields'=>array('EbLoginDetail.existing_buyer_id')));
+	   
+	    $getAllExpiredExistingBuyer = array_column(array_column($eb_expire,'EbLoginDetail'),'existing_buyer_id');
 		
-	$al_eb_ex=array();	
-	foreach($eb_expire  as $_eb_expire){
-				$al_eb_ex[]=$_eb_expire['EbLoginDetail']['existing_buyer_id'];			
-		} 
-		$expire_all_eb=array_unique($al_eb_ex);
+	    $expire_all_eb = array_unique($getAllExpiredExistingBuyer);
 	
-	
-	 
-	//	$all_req_id=array();
-		$all_req_id=array();
-		foreach($eb_req  as $_req_id){
-				$all_req_id[]=$_req_id['EbLoginDetail']['request_id'];			
-		} 
+		$all_req_id = array_column(array_column($eb_req,'EbLoginDetail'),'request_id'); 
 		
-		$un_req_id=array_unique($all_req_id);
-		// echo "<pre>"; print_r($un_req_id); die;
+		$un_req_id = array_unique($all_req_id);
 		
 		$replace_ex_id = $this->ExistingBuyer->find('list',array('fields'=>array('ExistingBuyer.id'),'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'ExistingBuyer.replace'=>1)));
-
 		
-	foreach($un_req_id  as $_req_id){
+	    foreach($un_req_id  as $_req_id){
 		
 		$feedback=$this->FeedbackRequest->find('first',array('conditions'=>array('FeedbackRequest.id'=>$_req_id)));
+		
 		$nb_acc_ex=json_decode($feedback['FeedbackRequest']['selected_new_b_exist'],true);
 			
-	foreach($nb_acc_ex as $nb=>$exs){	
+	    foreach($nb_acc_ex as $nb=>$exs){	
 		
 		$this->SupplierBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));
 		
-		$all_buyer_exist['nb'] = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id,'SupplierBuyer.buyer_id'=>$nb), 'order'=>array('SupplierBuyer.id'=>'DESC')));	
-			
+		$all_buyer_exist['nb'] = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id,'SupplierBuyer.buyer_id'=>$nb), 'order'=>array('SupplierBuyer.id'=>'DESC')));
 			
 		$all_ex=array_merge($replace_ex_id,$exs);
-		$all_ext=array_unique($all_ex);
 		
+		$all_ext=array_unique($all_ex);
 		
 		$all_buyer_exist['nb']['ex']  = $this->ExistingBuyer->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$active_supplier_id,'ExistingBuyer.id'=>$all_ext), 'order'=>array('ExistingBuyer.id'=>'ASC')));	
 		
@@ -1357,72 +1355,69 @@ Class SuppliersController extends SupplierManagerAppController{
 		
 		$total_buyer_exist[]=$all_buyer_exist;
 				
-			}	
-				
+			}
 		} 
-		
-	//echo "<pre>"; print_r($total_buyer_exist); die;		
-	
 		 
 		$this->SupplierBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));
 		
 		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id,'SupplierBuyer.round'=>2), 'order'=>array('SupplierBuyer.id'=>'DESC')));			
 		
-		}	
-	// for  feedback existing  id  get
-		$feedget_id = $this->EbLoginDetail->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'EbLoginDetail.eb_status'=>array(1,3,4,5,6)),'order'=>array('EbLoginDetail.id'=>'DESC'),'fields'=>array('EbLoginDetail.existing_buyer_id')));	
-	 	 foreach($feedget_id  as $feed_ex_id){
-				$feed_id[]=$feed_ex_id['EbLoginDetail']['existing_buyer_id'];			
-		} 
-		$all_feed_id=array_unique($feed_id);
-		
-	 
-	// for required feedback
-		$req_fed=array();
-		foreach($buyer_exist as $_buyer_exist){
-		$req_fed[]=$_buyer_exist['SupplierBuyer']['required_feedback'];
 		}
+			
+		/*===================FOR FEEDBACK EXISTING ID GET===================*/
+		 
+		$feedget_id = $this->EbLoginDetail->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'EbLoginDetail.eb_status'=>array(1,3,4,5,6,7)),'order'=>array('EbLoginDetail.id'=>'DESC'),'fields'=>array('EbLoginDetail.existing_buyer_id')));
 		
-		$tot_req_feed=(max($req_fed));
+		$getAllexstingBuyerId = array_column(array_column($feedget_id,'EbLoginDetail'),'existing_buyer_id');
+		
+		$all_feed_id = array_unique($getAllexstingBuyerId);
+		
+	   /*===================START GETTING REQUIRED FEEDBACK===================*/
+	   
+		$req_fed=array();
+		
+		$getRequeiredFeedBack = array_column(array_column($buyer_exist,'SupplierBuyer'),'required_feedback');
+		
+		/*foreach($buyer_exist as $_buyer_exist){
+			
+		$req_fed[]=$_buyer_exist['SupplierBuyer']['required_feedback'];
+		
+		}*/
+		
+		//$tot_req_feed=(max($req_fed));
+		
+		$tot_req_feed=(max($getRequeiredFeedBack));
+		
 		$this->set('tot_req', $tot_req_feed);	
 		
-	// End  for required feedback	
+	  /*===================END GETTING REQUIRED FEEDBACK===================*/	
 
 		$this->paginate['ExistingBuyer'] = array(
 		  'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1),
 		  'order' => array('ExistingBuyer.id'=>'DESC'),
 		  'limit' => 5,		 
 		);
+		
 		$eb = $this->paginate('ExistingBuyer');		
-
 
 		$expire_all_eb=array_values($expire_all_eb);
 		
-	   //echo "<pre>"; print_r($expire_all_eb); die;	
-		
-	   //echo "<pre>"; print_r($total_buyer_exist); die;	
-	  
-	    //echo '<pre>'; print_r($eb); die;
-	    
 	    $test_count = 0;
-	      
+	    
 	    foreach($total_buyer_exist as $t_buyers){
 			
 			foreach($t_buyers['nb']['ex'] as $temp_valn){
 				 if(!in_array($temp_valn['ExistingBuyer']['id'],$expire_all_eb)){
 					 $test_count++;
 				 }
-				
 			}
 		}
-		
-		//echo $test_count; die;
 		
 		if($test_count == 0){
 			
 		$this->Session->setFlash(__('You have not replaced any Existing Buyer(s)', true),'default','','error');
 		
-	       $this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'dashboard'));
+	    $this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'dashboard'));
 			
 		}	
 	  
