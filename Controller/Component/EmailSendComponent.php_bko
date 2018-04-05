@@ -1,0 +1,164 @@
+<?php
+App::uses('Component', 'Controller');
+App::uses('Multibyte', 'I18n');
+App::uses('CakeEmail', 'Network/Email');
+class EmailSendComponent extends Component {
+		public $components = array('System');
+		public $layout = 'default';
+		public $template = 'default';
+		public $sendAs = 'html';
+		public $delivery = 'mail';
+		public $charset = 'utf-8';
+		public $site_detail = array();
+		public $to = array();
+		public $cc = array();
+		public $from = null;
+		public $replyTo = null;
+		public $subject = null;
+		public $heading = 'Welcome to ETS';
+		public $return = null;
+		public $attachments = array();
+		public $lineFeed = PHP_EOL;
+		public $additionalParams = null;
+		public $xMailer = 'CakePHP Email Component';
+		public $filePaths = array();
+		public $textMessage = null;
+		public $htmlMessage = null;
+		public $smtpOptions =array();
+		
+	public function load_mail($maild_id = null,$replacement = array()){
+		
+		pr($this->System->get_setting());echo "Hello shortcode";die;
+		
+		$mailModel = ClassRegistry::init('Mail');
+		$mailData=$mailModel->read(null,$maild_id);
+		$body=str_replace('{NAME}',$replacement['Page']['name'],$mailData['Mail']['mail_body']);
+		$body=str_replace('{SUBJECT}',$replacement['Page']['subject'],$body);
+		$body=str_replace('{EMAIL}',$replacement['Page']['email'],$body);
+		$body=str_replace('{PHONE}',$replacement['Page']['phone'],$body);
+		$body=str_replace('{MESSAGE}',$replacement['Page']['message'],$body);
+		$this->to=$this->site_detail['site_contact_email'];
+		$this->from=$replacement['Page']['email'];
+		$this->replyTo=$replacement['Page']['email'];
+		$this->subject=$mailData['Mail']['mail_subject'];
+		$this->heading=$mailData['Mail']['heading'];
+		echo "<pre>";print_r($body);
+		return $body;
+		
+		}
+	public function SendMail($Mailcontent = array()) {
+			
+		/* SMTP mail testing code */
+		$settingModel = ClassRegistry::init('Setting');
+		$settings = Cache::read('smtp');
+		$settings = array();
+		if(empty($settings)){
+		$results = $settingModel->find('all',array('fields'=>array('Setting.key','Setting.values','Setting.module')));
+			$settings = array();
+			foreach($results as $result){
+				$settings[$result['Setting']['module']][$result['Setting']['key']] = $result['Setting']['values'];
+			}
+			$smtpSetting=$settings['smtp'];
+			$this->site_detail=$settings['site'];
+			Cache::write('smtp', $smtpSetting);
+		}
+		$Mail_Body_content=$this->load_mail(8,$Mailcontent);
+		if($settings['smtp']['smtp_status']==1){
+			$this->delivery='smtp';
+			$smtpOptions = array(
+				'transport' => 'Smtp',
+				'from' => $this->from,
+				'host' => $settings['smtp']['smtp_host'],
+				'port' => $settings['smtp']['smpt_port'],
+				'timeout' => 30,
+				'username' => $settings['smtp']['smtp_email'],
+				'password' => $settings['smtp']['smtp_password'],
+				'client' => null,
+				'log' => false,
+			); 
+			
+		}
+		/* SMTP mail testing code */
+		
+		$Email = new CakeEmail();
+		$Email->charset = $this->charset;
+		$Email->headerCharset = $this->charset;
+		$Email->from($this->from);
+		$Email->to($this->to);
+		$Email->replyTo($this->replyTo);
+		$Email->addHeaders(array('X-Mailer' => 'My custom header'));
+		if (!empty($this->cc)) {
+			$Email->cc($this->cc);
+		}
+		if (!empty($this->return)) {
+			$Email->returnPath($this->return);
+		}
+		$Email->subject($this->subject);
+		$Email->emailFormat($this->sendAs);
+		$Email->template($this->template);
+		$Email->viewVars(array('data'=>$Mail_Body_content,'heading'=>$this->heading,'logo'=>Configure::read('Site.logo'),'url'=>Configure::read('Site.url'),'site_name'=>$this->site_detail['site_name']));
+		if (!empty($this->attachments)) {
+			$Email->attachments($this->_formatAttachFiles());
+		}
+		if ($this->delivery === 'smtp') {
+			$Email->config($smtpOptions);
+		} else {
+			$Email->config(array());
+		}
+		$sent = $Email->send();
+		echo "<h1>mail send plz check</h1>";die;
+		$this->htmlMessage = $Email->message(CakeEmail::MESSAGE_HTML);
+		if (empty($this->htmlMessage)) {
+		$this->htmlMessage = null;
+		}
+		$this->textMessage = $Email->message(CakeEmail::MESSAGE_TEXT);
+		if (empty($this->textMessage)) {
+			$this->textMessage = null;
+		}
+		
+		return $sent;
+	}
+	
+	public function reset() {
+		$this->template = null;
+		$this->to = array();
+		$this->from = null;
+		$this->return = null;
+		$this->cc = array();
+		$this->heading=null;
+		$this->subject = null;
+		$this->additionalParams = null;
+		$this->date = null;
+		$this->replyTo = null;
+		$this->attachments = array();
+		$this->htmlMessage = null;
+		$this->textMessage = null;
+		$this->messageId = true;
+		$this->delivery = 'mail';
+	}
+	protected function _formatAddresses($addresses) {
+		$formatted = array();
+		foreach ($addresses as $address) {
+			if (preg_match('/((.*))?\s?<(.+)>/', $address, $matches) && !empty($matches[2])) {
+				$formatted[$this->_strip($matches[3])] = $matches[2];
+			}else{
+					$address = $this->_strip($address);
+					$formatted[$address] = $address;
+				}
+			}
+		return $formatted;
+	}
+	protected function _strip($value, $message = false) {
+		$search = '%0a|%0d|Content-(?:Type|Transfer-Encoding)\:';
+		$search .= '|charset\=|mime-version\:|multipart/mixed|(?:[^a-z]to|b?cc)\:.*';
+		if ($message !== true) {
+			$search .= '|\r|\n';
+		}
+		$search = '#(?:' . $search . ')#i';
+		while (preg_match($search, $value)) {
+			$value = preg_replace($search, '', $value);
+		}
+		return $value;
+	}
+	
+}
