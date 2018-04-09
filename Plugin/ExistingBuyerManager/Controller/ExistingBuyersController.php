@@ -793,50 +793,54 @@ Class ExistingBuyersController extends ExistingBuyerManagerAppController{
 		 
 			$this->autoRender = false;
 			if(!empty($this->request->data)){		
-	//echo "<pre>"; print_r($this->request->data); die;
-						$this->request->data['ExistingBuyer']['modified_at']=date('Y-m-d H:i:s');
-						$this->request->data['ExistingBuyer']['id']=$this->request->data['ExistingBuyer']['id'];
+				$this->request->data['ExistingBuyer']['modified_at']=date('Y-m-d H:i:s');
+				$this->request->data['ExistingBuyer']['id']=$this->request->data['ExistingBuyer']['id'];
 					
-						if(!empty($this->request->data['ExistingBuyer']['org_name'])){
-						//$this->request->data['ExistingBuyer']['org_name']=strtoupper($this->request->data['ExistingBuyer']['org_name']);
-						$this->request->data['ExistingBuyer']['org_name']=ucfirst($this->request->data['ExistingBuyer']['org_name']);
-						}	
+				if(!empty($this->request->data['ExistingBuyer']['org_name'])){
+				//$this->request->data['ExistingBuyer']['org_name']=strtoupper($this->request->data['ExistingBuyer']['org_name']);
+				$this->request->data['ExistingBuyer']['org_name']=ucfirst($this->request->data['ExistingBuyer']['org_name']);
+				}	
 		 
-						$this->ExistingBuyer->create();
-						$this->ExistingBuyer->save($this->request->data,array('validate'=>false)); 
-						//$id = $this->ExistingBuyer->id;
+				$this->ExistingBuyer->create();
+				$this->ExistingBuyer->save($this->request->data,array('validate'=>false)); 
+				//$id = $this->ExistingBuyer->id;
 				}
-			
-		//	echo "test"; 
 			return;
 			//$this->set('req_fed',$req_fed);
 		}		
 					
 	public function existing_buyer_list($id=null) {
-		  $loguser = $this->Session->read('Auth.Supplier');		 
+		
+		  $loguser = $this->Session->read('Auth.Supplier');	
+		  	 
 		  if(!$loguser){
 				$this->redirect($this->Auth->redirect());
 			}
+			
 			$countries = $this->Country->country_list();
+			
 			$page['Page']['banner_image'] = $this->System->get_setting('page','banner_image');
-			if(!empty($this->request->data['ExistingBuyer']) && $this->validation())
-			{	
+			
+			if(!empty($this->request->data['ExistingBuyer']) && $this->validation()){	
 			
 				if(!$id){
 						$this->request->data['ExistingBuyer']['created_at']=date('Y-m-d H:i:s');	
 					}else{
 						$this->request->data['ExistingBuyer']['updated_at']=date('Y-m-d H:i:s');
 					}
-					$data['SupplierBuyer']['created_at']=date('Y-m-d H:i:s');						
+					$data['SupplierBuyer']['created_at']=date('Y-m-d H:i:s');	
+										
 					$this->ExistingBuyer->create();
+					
 					$this->ExistingBuyer->save($this->request->data,array('validate'=>false));
+					
 					$id = $this->ExistingBuyer->id;
 					
 					if ($this->request->data['ExistingBuyer']['id']) {
-						//$this->Session->setFlash(__('Existing buyer has been updated successfully'));
+						
 						$this->Session->setFlash(__('Existing buyer has been updated successfully.'),'default',array(),'success');
 					}else{
-						//$this->Session->setFlash(__('New Existing buyer has been added successfully'));
+						
 						$this->Session->setFlash(__('New Existing buyer has been added successfully.'),'default',array(),'success');
 					}
 					$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'eb_list'));
