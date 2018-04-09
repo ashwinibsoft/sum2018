@@ -1288,7 +1288,8 @@ Class SuppliersController extends SupplierManagerAppController{
 		$this->set('process_step',$process_step['Supplier']['process_step']);
 	  }
 	  
-	 public function select_existing_buyer($responce=null) {	  	
+	 public function select_existing_buyer($responce=null) {
+		 	  	
 		$loguser_id = self::_check_member_login();
 			
 		$loguser =$this->MemberAuth->get_active_member_detail();
@@ -1312,14 +1313,15 @@ Class SuppliersController extends SupplierManagerAppController{
 		
 		$this->SupplierBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));
 		
-		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id), 'order'=>array('SupplierBuyer.id'=>'DESC')));	
+		/*==========================GET ALL NEW BUYER OF RELATED TO CURRENT SUPPLIER BUYER==================================*/
+		
+		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id), 'order'=>array('SupplierBuyer.id'=>'DESC')));
 		
 		if($process_step['Supplier']['process_step']==5){
 		
 		$eb_req = $this->EbLoginDetail->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'EbLoginDetail.eb_status'=>2,'EbLoginDetail.is_link_expire'=>1),'order'=>array('EbLoginDetail.id'=>'DESC'),'fields'=>array('EbLoginDetail.request_id')));	
 		
-		
-      /*==========================GET EXPIRED EXISTING BUYER==================================*/
+       /*==========================GET EXPIRED EXISTING BUYER==================================*/
 
 	    $eb_expire = $this->EbLoginDetail->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'EbLoginDetail.eb_status'=>2,'EbLoginDetail.is_link_expire'=>array(1,3)),'fields'=>array('EbLoginDetail.existing_buyer_id')));
 	   
@@ -1335,11 +1337,19 @@ Class SuppliersController extends SupplierManagerAppController{
 		
 	    foreach($un_req_id  as $_req_id){
 		
-		$feedback=$this->FeedbackRequest->find('first',array('conditions'=>array('FeedbackRequest.id'=>$_req_id)));
+		$feedback = $this->FeedbackRequest->find('first',array('conditions'=>array('FeedbackRequest.id'=>$_req_id)));
 		
 		$nb_acc_ex=json_decode($feedback['FeedbackRequest']['selected_new_b_exist'],true);
-			
-	    foreach($nb_acc_ex as $nb=>$exs){	
+	    
+	    /*======================FIND NEW BUYER WHICH REPORT IS ALREADY SENT ========================*/
+	
+	    $getResponseSubmittedNewBuyer = json_decode($feedback['FeedbackRequest']['is_report_sent'],true);
+	    
+	    $responseSubmittedNewBuyerList = array_filter($getResponseSubmittedNewBuyer);
+		
+	    foreach($nb_acc_ex as $nb=>$exs){
+				
+		if(!array_key_exists($nb,$responseSubmittedNewBuyerList)){
 		
 		$this->SupplierBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));
 		
@@ -1356,7 +1366,8 @@ Class SuppliersController extends SupplierManagerAppController{
 		$total_buyer_exist[]=$all_buyer_exist;
 				
 			}
-		} 
+		  }
+		}
 		 
 		$this->SupplierBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));
 		
@@ -1390,13 +1401,11 @@ Class SuppliersController extends SupplierManagerAppController{
 		
 		$this->set('tot_req', $tot_req_feed);	
 		
-	  /*===================END GETTING REQUIRED FEEDBACK===================*/	
+	   /*===================END GETTING REQUIRED FEEDBACK===================*/	
 
 		$this->paginate['ExistingBuyer'] = array(
 		  'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1),
-		  'order' => array('ExistingBuyer.id'=>'DESC'),
-		  'limit' => 5,		 
-		);
+		  'order' => array('ExistingBuyer.id'=>'DESC'),'limit' => 5,);
 		
 		$eb = $this->paginate('ExistingBuyer');		
 
@@ -1429,11 +1438,15 @@ Class SuppliersController extends SupplierManagerAppController{
 	  }  
 	  
 	 public function assign_existing_buyer_feed($id=null) {
+		 
 		$loguser_id = self::_check_member_login();
 			
 		$loguser =$this->MemberAuth->get_active_member_detail();
-		$process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$loguser_id),'fields'=>array('Supplier.process_step')));		
+		
+		$process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$loguser_id),'fields'=>array('Supplier.process_step')));	
+			
 		$active_supplier_id=$loguser_id;
+		
 		if(isset($id) && $id=='cancel'){
 			$this->Session->delete('Request');
 			$this->redirect(array('plugin'=>'supplier_manager','controller'=>'suppliers','action'=>'make_request'));
@@ -1445,7 +1458,6 @@ Class SuppliersController extends SupplierManagerAppController{
 		
 		$this->SupplierBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));
 		
-		
 		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id), 'order'=>array('SupplierBuyer.id'=>'DESC')));	
 		
 		if($process_step['Supplier']['process_step']==5){
@@ -1454,27 +1466,30 @@ Class SuppliersController extends SupplierManagerAppController{
 		
 		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id,'SupplierBuyer.round'=>2), 'order'=>array('SupplierBuyer.id'=>'DESC')));			
 		}
-	// for required feedback
+		
+	    /*===================FOR REQUIRED FEEDBACK===================*/
+		
 		$req_fed=array();
+		
 		foreach($buyer_exist as $_buyer_exist){
+			
 		$req_fed[]=$_buyer_exist['SupplierBuyer']['required_feedback'];
 		}
 		
+		$query ="SELECT `existing_buyer_id` FROM `feedback_responses` c INNER JOIN `existing_buyers`  ca  ON ca.`id` = c.`existing_buyer_id` WHERE c.`response_status` =\" 2 \" AND ca.`supplier_id` = \"$loguser_id \" ";
 		
-		$val = $this->FeedbackResponse->query("SELECT `existing_buyer_id` FROM `feedback_responses` c INNER JOIN `existing_buyers`  ca  ON ca.`id` = c.`existing_buyer_id` WHERE c.`response_status` =\" 2 \" AND ca.`supplier_id` = \"$loguser_id \" ");
+		$val = $this->FeedbackResponse->query($query);
                 
-         $al_res = array();
+        $al_res = array();
                 
         foreach($val as $_val){
 			$al_res[] = $_val['c']['existing_buyer_id'];
-			
-			} 
-		
-		//echo '<pre>'; print_r($al_res); //exit;	
+			}
 		
 		$this->set('already_res', $al_res);
 		
 		$tot_req_feed=(max($req_fed));
+		
 		$this->set('tot_req', $tot_req_feed);	
 	
 		$exist_id = $this->ExistingBuyer->find('list',array('fields'=>array('ExistingBuyer.id'),'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1)));
@@ -1483,25 +1498,13 @@ Class SuppliersController extends SupplierManagerAppController{
 	
 	    
 		$response_id = $this->FeedbackResponse->find('list',array('fields'=>array('FeedbackResponse.existing_buyer_id'),'conditions'=>array('FeedbackResponse.existing_buyer_id'=>$exist_id))); 
-		
-		//echo '<pre>'; print_r($response_id); 
 	
 		$replace_ex_id = $this->ExistingBuyer->find('list',array('fields'=>array('ExistingBuyer.id'),'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'ExistingBuyer.replace'=>1)));
-	
-		
-		
-		//echo '<pre>'; print_r($replace_ex_id); 
 		
 		if(!empty($replace_ex_id)){
 			
 			$response_id=array_merge($replace_ex_id,$response_id);
 		}
-		
-		
-		//echo '<pre>'; print_r($response_id); exit;
-		
-		//echo '<pre>'; print_r($response_id); die;
-		
 		
 		/*$this->paginate['ExistingBuyer'] = array(
 		 'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.id'=>$response_id,'ExistingBuyer.status'=>1),
@@ -1530,8 +1533,7 @@ Class SuppliersController extends SupplierManagerAppController{
 			
 			$exist_both = array_merge($exist_both,array_values($lst_ex_both));
 			  
-			 }
-		 
+		}
 		 
 		 if($_SESSION['back_key']){
 			 if($_SESSION['back_key'] == 1){
@@ -1555,7 +1557,6 @@ Class SuppliersController extends SupplierManagerAppController{
 					
 					$select_exist_buyer_id = $exist_pending;
 				} 
-			
 			}
 		
 		
@@ -1581,13 +1582,9 @@ Class SuppliersController extends SupplierManagerAppController{
 		
 		
 		$this->paginate['ExistingBuyer'] = array(
-		  'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.id'=>$select_exist_buyer_id,'ExistingBuyer.status'=>1),
-		  'order' => array('ExistingBuyer.id'=>'DESC'),
-		);
+		  'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.id'=>$select_exist_buyer_id,'ExistingBuyer.status'=>1),'order' => array('ExistingBuyer.id'=>'DESC'),);
 		
-		$eb = $this->paginate('ExistingBuyer');		
-
-       // echo '<pre>'; print_r($eb); die;
+		$eb = $this->paginate('ExistingBuyer');	
        		
 		$this->set('existing_b', $eb);				
 		$this->set('s_nb_list', $buyer_exist);
@@ -1616,13 +1613,9 @@ Class SuppliersController extends SupplierManagerAppController{
 			$total_ques = $this->NewBuyerQuestion->find('list',array('conditions'=>array('NewBuyerQuestion.new_buyer_id'=>$_buyer_exist['SupplierBuyer']['buyer_id']),'fields'=>array('NewBuyerQuestion.question_id'),'recursive'  => 2));
 			
 			$quer_array=array_values($total_ques);
-			
-			
-			
-			//echo "<pre>"; print_r($quer_array); die;
 		}
 		
-	// for required feedback
+	   /*===================FOR REQUIRED FEEDBACK===================*/
 	    
 		$req_fed=array();
 		foreach($buyer_exist as $_buyer_exist){
@@ -1655,7 +1648,7 @@ Class SuppliersController extends SupplierManagerAppController{
 			
 		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id), 'order'=>array('SupplierBuyer.id'=>'DESC')));	
 		
-	// for required feedback
+	   /*===================FOR REQUIRED FEEDBACK===================*/
 		$req_fed=array();
 		foreach($buyer_exist as $_buyer_exist){
 		$req_fed[]=$_buyer_exist['SupplierBuyer']['required_feedback'];
@@ -1663,115 +1656,111 @@ Class SuppliersController extends SupplierManagerAppController{
 		
 		$tot_req_feed=(max($req_fed));
 		$this->set('tot_req', $tot_req_feed);	
-	// End  for required feedback	
+	  /*=================== END FOR REQUIRED FEEDBACK===================*/	
 		
 		$this->paginate['ExistingBuyer'] = array(
 		  'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1),
-		  'order' => array('ExistingBuyer.id'=>'DESC'),
-		  'limit' => 10,		 
-		);
+		  'order' => array('ExistingBuyer.id'=>'DESC'),'limit' => 10,);
+		  
 		$eb = $this->paginate('ExistingBuyer');			
 		$this->set('existing_b', $eb);				
 		$this->set('s_nb_list', $buyer_exist);
 		$this->set('process_step',$process_step['Supplier']['process_step']);
 	  }  
+	  
 	public function buyer_existing_list($id=null) {
+		
 		$loguser_id = self::_check_member_login();
+		
 		$loguser =$this->MemberAuth->get_active_member_detail();
-		$process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$loguser_id),'fields'=>array('Supplier.process_step')));		
+		
+		$process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$loguser_id),'fields'=>array('Supplier.process_step')));
+				
 		$active_supplier_id=$loguser_id;
-	if(!empty($this->request->data)){
-	foreach($this->request->data['SupplierBuyer'] as $sbuy=>$ref){								
+		
+	   if(!empty($this->request->data)){
+		
+	    foreach($this->request->data['SupplierBuyer'] as $sbuy=>$ref){								
 					$nb_refrence[]['SupplierBuyer']=$ref;
 				}	
-				//echo "<pre>"; print_r($nb_refrence); die;	
-	foreach($nb_refrence  as  $_refrence){	
+	    foreach($nb_refrence  as  $_refrence){	
               $ref=  $_refrence['SupplierBuyer']['reference_num'];        
               $cat=  $_refrence['SupplierBuyer']['category'];        
 			  $b_id=  $_refrence['SupplierBuyer']['buyer_id'];  
                $this->SupplierBuyer->updateAll(
                       array('SupplierBuyer.reference_num' => "'$ref'",'SupplierBuyer.category' =>"'$cat'"),
                       array('AND'=>array('SupplierBuyer.buyer_id'=>$b_id,'SupplierBuyer.supplier_id'=>$loguser_id))
-                                     );	      
-                                                       
-		}	
-}
+                                     );	               
+		    }	
+        }
 
 		$this->SupplierBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));	
 		
 		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id), 'order'=>array('SupplierBuyer.id'=>'DESC')));	
-	if($process_step['Supplier']['process_step']==5){
+	  if($process_step['Supplier']['process_step']==5){
 		
 		$this->SupplierBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));	
 		
 		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id,'SupplierBuyer.round'=>2), 'order'=>array('SupplierBuyer.id'=>'DESC')));	
 		
-	}
-
-		//echo "<pre>"; print_r($buyer_exist); die;	
+	    }
 		
 		$this->set('s_nb_list', $buyer_exist);
 		$this->set('process_step',$process_step['Supplier']['process_step']);
  }  
 	 
 	 
-public function select_existing_list($id=null) {
-		//echo "<pre>"; print_r($this->request->data); die;
+    public function select_existing_list($id=null) {
 	
 		$loguser_id = self::_check_member_login();
 		$loguser =$this->MemberAuth->get_active_member_detail();
-		$process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$loguser_id),'fields'=>array('Supplier.process_step')));		
+		
+		$process_step = $this->Supplier->find('first',array('conditions'=>array('Supplier.id'=>$loguser_id),'fields'=>array('Supplier.process_step')));	
+			
 		$active_supplier_id=$loguser_id;
-	if(!empty($this->request->data)){
-	foreach($this->request->data['SupplierBuyer'] as $sbuy=>$ref){								
+	  if(!empty($this->request->data)){
+	    foreach($this->request->data['SupplierBuyer'] as $sbuy=>$ref){								
 					$nb_refrence[]['SupplierBuyer']=$ref;
 				}	
-				//echo "<pre>"; print_r($nb_refrence); die;	
-	foreach($nb_refrence  as  $_refrence){	
+	 foreach($nb_refrence  as  $_refrence){	
               $ref=  $_refrence['SupplierBuyer']['reference_num'];        
               $cat=  $_refrence['SupplierBuyer']['category'];        
 			  $b_id=  $_refrence['SupplierBuyer']['buyer_id'];  
-               $this->SupplierBuyer->updateAll(
+              $this->SupplierBuyer->updateAll(
                       array('SupplierBuyer.reference_num' => "'$ref'",'SupplierBuyer.category' =>"'$cat'"),
                       array('AND'=>array('SupplierBuyer.buyer_id'=>$b_id,'SupplierBuyer.supplier_id'=>$loguser_id))
                                      );	      
                                                        
-		}	
-}
+	      }	
+       }
 
-
-
-$eb_req = $this->EbLoginDetail->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'EbLoginDetail.eb_status'=>2,'EbLoginDetail.is_link_expire'=>1),'order'=>array('EbLoginDetail.id'=>'DESC'),'fields'=>array('EbLoginDetail.request_id')));	
+       $eb_req = $this->EbLoginDetail->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'EbLoginDetail.eb_status'=>2,'EbLoginDetail.is_link_expire'=>1),'order'=>array('EbLoginDetail.id'=>'DESC'),'fields'=>array('EbLoginDetail.request_id')));	
 		
-// for exired existing buyer
+      /*========================FOR EXPIRED EXISTING BUYER==========================*/
 
-	$eb_expire = $this->EbLoginDetail->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'EbLoginDetail.eb_status'=>2,'EbLoginDetail.is_link_expire'=>1),'fields'=>array('EbLoginDetail.existing_buyer_id')));	
-	$al_eb_ex=array();	
-	foreach($eb_expire  as $_eb_expire){
+	 $eb_expire = $this->EbLoginDetail->find('all',array('conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'EbLoginDetail.eb_status'=>2,'EbLoginDetail.is_link_expire'=>1),'fields'=>array('EbLoginDetail.existing_buyer_id')));	
+	  $al_eb_ex=array();	
+	 foreach($eb_expire  as $_eb_expire){
 				$al_eb_ex[]=$_eb_expire['EbLoginDetail']['existing_buyer_id'];			
 		} 
 		$expire_all_eb=array_unique($al_eb_ex);
-	//	echo "<pre>"; print_r($expire_all_eb); die;
-	
-	
-	//	$all_req_id=array();
+		
 		$all_req_id=array();
 		foreach($eb_req  as $_req_id){
 				$all_req_id[]=$_req_id['EbLoginDetail']['request_id'];			
 		} 
 		
 		$un_req_id=array_unique($all_req_id);
-		// echo "<pre>"; print_r($un_req_id); die;
 		
-	//	$replace_ex_id = $this->ExistingBuyer->find('list',array('fields'=>array('ExistingBuyer.id'),'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'ExistingBuyer.replace'=>1)));
+	 //	$replace_ex_id = $this->ExistingBuyer->find('list',array('fields'=>array('ExistingBuyer.id'),'conditions'=>array('ExistingBuyer.supplier_id'=>$loguser_id,'ExistingBuyer.status'=>1,'ExistingBuyer.replace'=>1)));
 
 		
-	foreach($un_req_id  as $_req_id){
+	 foreach($un_req_id  as $_req_id){
 		
 		$feedback=$this->FeedbackRequest->find('first',array('conditions'=>array('FeedbackRequest.id'=>$_req_id)));
 		$nb_acc_ex=json_decode($feedback['FeedbackRequest']['selected_new_b_exist'],true);
 			
-	foreach($nb_acc_ex as $nb=>$exs){	
+	 foreach($nb_acc_ex as $nb=>$exs){	
 		
 		$this->SupplierBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));
 		
@@ -1788,23 +1777,18 @@ $eb_req = $this->EbLoginDetail->find('all',array('conditions'=>array('ExistingBu
 		
 		$total_buyer_exist[]=$all_buyer_exist;
 				
-			}	
-				
+			}
 		} 
-
-
+		
 		$this->SupplierBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));	
 		
 		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id), 'order'=>array('SupplierBuyer.id'=>'DESC')));	
-	if($process_step['Supplier']['process_step']==5){
+	   if($process_step['Supplier']['process_step']==5){
 		
 		$this->SupplierBuyer->bindModel(array('belongsTo' => array('Country' => array('foreignKey' => false,'conditions' => array('NewBuyer.country = Country.country_code_char2')))));	
 		
 		$buyer_exist = $this->SupplierBuyer->find('all',array('conditions'=>array('SupplierBuyer.supplier_id'=>$active_supplier_id,'SupplierBuyer.round'=>2), 'order'=>array('SupplierBuyer.id'=>'DESC')));	
-		
-	}
-
-	//	echo "<pre>"; print_r($total_buyer_exist); die;	
+	   }
 		
 	//	$this->set('s_nb_list', $buyer_exist);
 		$this->set('s_nb_list', $total_buyer_exist);
@@ -2276,31 +2260,21 @@ if(!empty($this->request->data)){
 			$req_id=json_decode($feedb_data['req_id']);			
 			$string_req_id=implode('-',$req_id);
 			
-			
 			$new_eb_id=json_decode($feedb_data['new_eb_id']);			
 			$string_new_eb_id=implode('-',$new_eb_id);
-		
-		
 		
 			$expire_id=json_decode($feedb_data['expire_id']);			
 			$string_expire_id=implode('-',$expire_id);
 			
-			
 			$new_eb_acc_req=json_decode($feedb_data['new_eb_acc_req']);	
-			
 			
 			$string_eb_acc_req='';
 			foreach($new_eb_acc_req as $k=>$_new_eb_acc_req){
 						$string_eb_acc_req.='@'.$k.'<'.implode('-',$_new_eb_acc_req);
-			}
-		
-			
-			
-					
+			}	
 			//$string_new_eb_acc_req=implode('-',$new_eb_acc_req);
 
-		}
-		
+		  }
 		
 			$s_nb=json_decode($feedb_data['selected_nb']);			
 			$string_nb_list=implode('-',$s_nb);
@@ -2314,7 +2288,7 @@ if(!empty($this->request->data)){
 			$string_s_q_list=implode('-',$s_q_list);
 			
 			$is_resent=$feedb_data['is_resent'];			
-	//		$plan_name = 'Feedback Request';	
+	        // $plan_name = 'Feedback Request';	
 			$plan_name = 'Feedback Request';	
 			$all_nb_list=json_decode($s_nb2);
 			
@@ -2323,8 +2297,8 @@ if(!empty($this->request->data)){
 				$sp=$this->NewBuyer->find('first', array('conditions'=>array('id'=>$list),'fields'=>array('required_feedback')));			
 				$required_list[]=$sp['NewBuyer']['required_feedback'];
 			}
-			//$max_req_num=max($required_list);
-			//$el=count($s_eb);
+			  //$max_req_num=max($required_list);
+			 //$el=count($s_eb);
 			//$var_quantity = ($el > $max_req_num ? $el : $max_req_num); 	
 			$var_quantity=count($s_nb);	
 			
@@ -2344,14 +2318,10 @@ if(!empty($this->request->data)){
 				$custom_variable = 'sid='.$sid.'~snb='.$string_nb_list.'~srid='.$string_req_id.'~sqlist='.$string_s_q_list.'~isresent='.$is_resent.'~nebid='.$string_new_eb_id.'~exid='.$string_expire_id.'~seidacreq='.$string_eb_acc_req.'~r_type='.$request_type;
 				
 			}
-				
 			
-			
-			
-		//echo "<pre>"; print_r($all_eb_req);die;		
-									  
-		//$custom_variable=addslashes($custom_variable);
-	//echo "<pre>"; print_r($custom_variable);die;					
+		     //echo "<pre>"; print_r($all_eb_req);die;	
+		    //$custom_variable=addslashes($custom_variable);
+	       //echo "<pre>"; print_r($custom_variable);die;					
 				
 				App::import('Vendor', 'paypal', array('file' => 'paypal' . DS . 'Paypal.php'));
 				$siteurl = Router::url('/',true);
